@@ -1,8 +1,9 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-import os
 
 # 1. Base de données
 from app.database import engine, get_db
@@ -15,6 +16,11 @@ from app.routes.eleves import router as eleves_router
 from app.routes.lego_sets import router as lego_sets_router
 from app.routes.sessions import router as sessions_router
 from app.routes.affectations import router as affectations_router
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_BUILD_DIR = REPO_ROOT / "frontend" / "build"
+STATIC_DIR = FRONTEND_BUILD_DIR / "static"
+INDEX_PATH = FRONTEND_BUILD_DIR / "index.html"
 
 app = FastAPI(title="Club LEGO", version="0.1.0")
 
@@ -37,14 +43,25 @@ app.include_router(sessions_router, prefix="/api", tags=["sessions"])
 app.include_router(affectations_router, prefix="/api", tags=["affectations"])
 
 # 7. Fichiers statiques
-app.mount("/static", StaticFiles(directory="frontend/build/static"), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+@app.get("/favicon.ico")
+async def favicon():
+    favicon_candidates = [
+        REPO_ROOT / "frontend" / "public" / "favicon.ico",
+        REPO_ROOT / "frontend" / "build" / "favicon.ico",
+    ]
+    favicon_path = next((path for path in favicon_candidates if path.exists()), None)
+    if favicon_path is None:
+        raise HTTPException(status_code=404, detail="Favicon not found")
+    return FileResponse(favicon_path)
 
 # 8. Servir index.html
 @app.get("/{path:path}")
 async def serve_frontend(request: Request):
     if request.url.path.startswith("/api"):
         raise HTTPException(status_code=404, detail="Not found")
-    index_path = os.path.join(os.getcwd(), "frontend", "build", "index.html")
-    if not os.path.exists(index_path):
-        raise HTTPException(status_code=500, detail=f"File {index_path} does not exist")
-    return HTMLResponse(content=open(index_path, "r", encoding="utf-8").read(), media_type="text/html")
+    if not INDEX_PATH.exists():
+        raise HTTPException(status_code=500, detail=f"File {INDEX_PATH} does not exist")
+    return HTMLResponse(content=INDEX_PATH.read_text(encoding="utf-8"), media_type="text/html")
