@@ -8,6 +8,7 @@ from app.crud.affectation import (
     get_affectation as crud_get_affectation,
     get_affectations as crud_get_affectations,
     get_affectations_by_session as crud_get_affectations_by_session,
+    update_affectation as crud_update_affectation,
     delete_affectation as crud_delete_affectation
 )
 from app.database import get_db
@@ -30,6 +31,13 @@ def read_affectations_by_session(session_id: int, db: Session = Depends(get_db))
 @router.get("/{affectation_id}", response_model=AffectationResponse)
 def read_affectation(affectation_id: int, db: Session = Depends(get_db)):
     db_affectation = crud_get_affectation(db, affectation_id)
+    if db_affectation is None:
+        raise HTTPException(status_code=404, detail="Affectation non trouvée")
+    return db_affectation
+
+@router.put("/{affectation_id}", response_model=AffectationResponse)
+def update_affectation(affectation_id: int, affectation: AffectationCreate, db: Session = Depends(get_db)):
+    db_affectation = crud_update_affectation(db, affectation_id, affectation.model_dump())
     if db_affectation is None:
         raise HTTPException(status_code=404, detail="Affectation non trouvée")
     return db_affectation

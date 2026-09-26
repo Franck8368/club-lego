@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Date
+from sqlalchemy import Column, Integer, ForeignKey, Date, Time
 from sqlalchemy.orm import relationship
 from . import Base  # <-- Utilisez la Base commune
 
@@ -9,6 +9,8 @@ class Affectation(Base):
     lego_set_id = Column(Integer, ForeignKey("lego_sets.id"), nullable=False)
     session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
     date_affectation = Column(Date, nullable=False)
+    heure_arrivee = Column(Time, nullable=True)
+    heure_depart = Column(Time, nullable=True)
 
     eleve = relationship("Eleve", backref="affectations")
     lego_set = relationship("LegoSet", backref="affectations")

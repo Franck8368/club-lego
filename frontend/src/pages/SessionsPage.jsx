@@ -65,6 +65,19 @@ function SessionsPage() {
     }
   };
 
+  const formatSessionPeriod = (session) => {
+    if (!session?.date) return '—';
+    const sessionDate = new Date(`${session.date}T00:00:00`);
+    const formattedDate = sessionDate.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    const creneauText = session.creneau || 'Créneau non défini';
+    return `${formattedDate} • ${creneauText}`;
+  };
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -82,16 +95,31 @@ function SessionsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>Date</th><th>Créneau</th><th>Statut</th><th>Actions</th>
+            <th>ID</th><th>Période d'ouverture</th><th>Statut</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {sessions.map(session => (
             <tr key={session.id}>
               <td>{session.id}</td>
-              <td>{new Date(session.date).toLocaleDateString()}</td>
-              <td>{session.creneau}</td>
-              <td><Badge bg={session.ouvert ? 'success' : 'secondary'}>{session.ouvert ? 'Ouvert' : 'Fermé'}</Badge></td>
+              <td>{formatSessionPeriod(session)}</td>
+              <td>
+                <Badge
+                  bg={session.ouvert ? 'success' : 'dark'}
+                  text={session.ouvert ? 'white' : 'light'}
+                  pill
+                  style={{
+                    fontSize: '0.8rem',
+                    padding: '0.55rem 0.8rem',
+                    letterSpacing: '0.02em',
+                    minWidth: '110px',
+                    textAlign: 'center',
+                    display: 'inline-block'
+                  }}
+                >
+                  {session.ouvert ? 'Ouvert' : 'Fermé'}
+                </Badge>
+              </td>
               <td>
                 <Button variant="warning" size="sm" onClick={() => handleEdit(session)} className="me-2">Modifier</Button>
                 <Button variant="danger" size="sm" onClick={() => handleDelete(session.id)}>Supprimer</Button>

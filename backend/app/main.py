@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # 1. Base de données
-from app.database import engine, get_db
+from app.database import engine, get_db, ensure_affectation_columns
 
 # 2. Imports EXPLICITES de TOUS les modèles et de la Base
 from app.models import Base, Eleve, LegoSet, Session, Affectation
@@ -17,7 +17,20 @@ from app.routes.lego_sets import router as lego_sets_router
 from app.routes.sessions import router as sessions_router
 from app.routes.affectations import router as affectations_router
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+def resolve_repo_root() -> Path:
+    candidates = [
+        Path("/app"),
+        Path(__file__).resolve().parents[2],
+        Path(__file__).resolve().parents[1],
+        Path(__file__).resolve().parent.parent,
+    ]
+    for candidate in candidates:
+        if (candidate / "frontend" / "build").exists():
+            return candidate
+    return Path(__file__).resolve().parents[2]
+
+
+REPO_ROOT = resolve_repo_root()
 FRONTEND_BUILD_DIR = REPO_ROOT / "frontend" / "build"
 STATIC_DIR = FRONTEND_BUILD_DIR / "static"
 INDEX_PATH = FRONTEND_BUILD_DIR / "index.html"
@@ -26,6 +39,7 @@ app = FastAPI(title="Club LEGO", version="0.1.0")
 
 # 4. Créer les tables (APRÈS tous les imports)
 Base.metadata.create_all(bind=engine)
+ensure_affectation_columns()
 
 # 5. Middleware CORS
 app.add_middleware(
