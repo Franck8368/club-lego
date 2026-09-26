@@ -14,7 +14,9 @@ function AffectationsPage() {
     eleve_id: '',
     lego_set_id: '',
     session_id: '',
-    date_affectation: new Date().toISOString().split('T')[0]
+    date_affectation: new Date().toISOString().split('T')[0],
+    heure_arrivee: '',
+    heure_depart: ''
   });
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
@@ -46,20 +48,39 @@ function AffectationsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const sanitizedData = {
+      ...formData,
+      heure_arrivee: formData.heure_arrivee || null,
+      heure_depart: formData.heure_depart || null
+    };
+
+    if (sanitizedData.heure_arrivee && sanitizedData.heure_depart && sanitizedData.heure_depart < sanitizedData.heure_arrivee) {
+      setError('Période invalide : l\'heure de départ ne peut pas être avant l\'heure d\'arrivée.');
+      return;
+    }
+
     try {
       if (editingId) {
-        await axios.put(`${API_URL}/affectations/${editingId}`, formData);
+        await axios.put(`${API_URL}/affectations/${editingId}`, sanitizedData);
         setSuccess('Affectation mise à jour');
       } else {
-        await axios.post(`${API_URL}/affectations`, formData);
+        await axios.post(`${API_URL}/affectations`, sanitizedData);
         setSuccess('Affectation ajoutée');
       }
       fetchData();
       setShowModal(false);
-      setFormData({ eleve_id: '', lego_set_id: '', session_id: '', date_affectation: new Date().toISOString().split('T')[0] });
+      setFormData({
+        eleve_id: '',
+        lego_set_id: '',
+        session_id: '',
+        date_affectation: new Date().toISOString().split('T')[0],
+        heure_arrivee: '',
+        heure_depart: ''
+      });
       setEditingId(null);
     } catch (err) {
-      setError('Erreur lors de la sauvegarde');
+      setError(err?.response?.data?.detail || 'Erreur lors de la sauvegarde');
     }
   };
 
@@ -68,7 +89,9 @@ function AffectationsPage() {
       eleve_id: affectation.eleve_id,
       lego_set_id: affectation.lego_set_id,
       session_id: affectation.session_id,
-      date_affectation: affectation.date_affectation
+      date_affectation: affectation.date_affectation,
+      heure_arrivee: affectation.heure_arrivee || '',
+      heure_depart: affectation.heure_depart || ''
     });
     setEditingId(affectation.id);
     setShowModal(true);
@@ -107,7 +130,14 @@ function AffectationsPage() {
         <h1>Gestion des Affectations</h1>
         <Button variant="primary" onClick={() => {
           setEditingId(null);
-          setFormData({ eleve_id: '', lego_set_id: '', session_id: '', date_affectation: new Date().toISOString().split('T')[0] });
+          setFormData({
+            eleve_id: '',
+            lego_set_id: '',
+            session_id: '',
+            date_affectation: new Date().toISOString().split('T')[0],
+            heure_arrivee: '',
+            heure_depart: ''
+          });
           setShowModal(true);
         }}>Ajouter une affectation</Button>
       </div>
@@ -118,7 +148,7 @@ function AffectationsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Actions</th>
+            <th>ID</th><th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -129,6 +159,8 @@ function AffectationsPage() {
               <td>{getLegoSetName(aff.lego_set_id)}</td>
               <td>{getSessionInfo(aff.session_id)}</td>
               <td>{new Date(aff.date_affectation).toLocaleDateString()}</td>
+              <td>{aff.heure_arrivee || '—'}</td>
+              <td>{aff.heure_depart || '—'}</td>
               <td>
                 <Button variant="warning" size="sm" onClick={() => handleEdit(aff)} className="me-2">Modifier</Button>
                 <Button variant="danger" size="sm" onClick={() => handleDelete(aff.id)}>Supprimer</Button>
@@ -179,6 +211,18 @@ function AffectationsPage() {
               <Form.Label column sm={3}>Date</Form.Label>
               <Col sm={9}>
                 <Form.Control type="date" name="date_affectation" value={formData.date_affectation} onChange={handleInputChange} required />
+              </Col>
+            </Form.Group>
+            <Form.Group as={Row} className="mb-3">
+              <Form.Label column sm={3}>Heure d'arrivée</Form.Label>
+              <Col sm={9}>
+                <Form.Control type="time" name="heure_arrivee" value={formData.heure_arrivee} onChange={handleInputChange} />
+              </Col>
+            </Form.Group>
+            <Form.Group as={Row} className="mb-3">
+              <Form.Label column sm={3}>Heure de départ</Form.Label>
+              <Col sm={9}>
+                <Form.Control type="time" name="heure_depart" value={formData.heure_depart} onChange={handleInputChange} />
               </Col>
             </Form.Group>
             <Button variant="primary" type="submit">{editingId ? 'Mettre à jour' : 'Ajouter'}</Button>
