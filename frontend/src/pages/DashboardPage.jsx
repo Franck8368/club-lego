@@ -7,6 +7,9 @@ const API_URL = '/api';
 function DashboardPage() {
   const [stats, setStats] = useState({ eleves: 0, legoSets: 0, sessions: 0, affectations: 0 });
   const [recentAffectations, setRecentAffectations] = useState([]);
+  const [eleves, setEleves] = useState([]);
+  const [legoSets, setLegoSets] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -22,6 +25,11 @@ function DashboardPage() {
         axios.get(`${API_URL}/sessions`),
         axios.get(`${API_URL}/affectations`)
       ]);
+
+      setEleves(elevesRes.data);
+      setLegoSets(legoSetsRes.data);
+      setSessions(sessionsRes.data);
+
       setStats({
         eleves: elevesRes.data.length,
         legoSets: legoSetsRes.data.length,
@@ -40,6 +48,23 @@ function DashboardPage() {
     } catch (err) {
       setError('Erreur lors de la récupération des affectations');
     }
+  };
+
+  const getEleveName = (eleveId) => {
+    const eleve = eleves.find(item => item.id === eleveId);
+    if (!eleve) return 'N/A';
+    return `${eleve.prenom || ''} ${eleve.nom || ''}`.trim() || 'N/A';
+  };
+
+  const getLegoSetName = (legoSetId) => {
+    const legoSet = legoSets.find(item => item.id === legoSetId);
+    return legoSet ? legoSet.nom : 'N/A';
+  };
+
+  const getSessionInfo = (sessionId) => {
+    const session = sessions.find(item => item.id === sessionId);
+    if (!session) return 'N/A';
+    return `${session.date || 'N/A'} - ${session.creneau || ''}`.trim() || 'N/A';
   };
 
   return (
@@ -101,9 +126,9 @@ function DashboardPage() {
                   {recentAffectations.map(aff => (
                     <tr key={aff.id}>
                       <td>{aff.id}</td>
-                      <td>{aff.eleve?.prenom || 'N/A'} {aff.eleve?.nom || ''}</td>
-                      <td>{aff.lego_set?.nom || 'N/A'}</td>
-                      <td>{aff.session?.date || 'N/A'} - {aff.session?.creneau || ''}</td>
+                      <td>{getEleveName(aff.eleve_id)}</td>
+                      <td>{getLegoSetName(aff.lego_set_id)}</td>
+                      <td>{getSessionInfo(aff.session_id)}</td>
                       <td>{new Date(aff.date_affectation).toLocaleDateString()}</td>
                     </tr>
                   ))}
