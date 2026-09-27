@@ -17,8 +17,10 @@ router = APIRouter(prefix="/affectations")
 
 @router.post("", response_model=AffectationResponse)
 def create_affectation(affectation: AffectationCreate, db: Session = Depends(get_db)):
-    # date_affectation: date = date.today() est géré dans AffectationCreate
-    return crud_create_affectation(db, affectation)
+    try:
+        return crud_create_affectation(db, affectation)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @router.get("", response_model=List[AffectationResponse])
 def read_affectations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -37,7 +39,10 @@ def read_affectation(affectation_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{affectation_id}", response_model=AffectationResponse)
 def update_affectation(affectation_id: int, affectation: AffectationCreate, db: Session = Depends(get_db)):
-    db_affectation = crud_update_affectation(db, affectation_id, affectation.model_dump())
+    try:
+        db_affectation = crud_update_affectation(db, affectation_id, affectation.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if db_affectation is None:
         raise HTTPException(status_code=404, detail="Affectation non trouvée")
     return db_affectation

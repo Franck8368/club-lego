@@ -61,10 +61,26 @@ function DashboardPage() {
     return legoSet ? legoSet.nom : 'N/A';
   };
 
+  const formatFrenchDate = (dateValue) => {
+    if (!dateValue) return 'N/A';
+    const parsedDate = new Date(`${dateValue}T00:00:00`);
+    if (Number.isNaN(parsedDate.getTime())) return dateValue;
+    return parsedDate.toLocaleDateString('fr-FR');
+  };
+
   const getSessionInfo = (sessionId) => {
     const session = sessions.find(item => item.id === sessionId);
     if (!session) return 'N/A';
-    return `${session.date || 'N/A'} - ${session.creneau || ''}`.trim() || 'N/A';
+    return `${formatFrenchDate(session.date)} - ${session.creneau || ''}`.trim() || 'N/A';
+  };
+
+  const getStatusLabel = (statut) => {
+    const labels = {
+      en_cours: 'En cours',
+      complet: 'Complet',
+      non_fini: 'Non fini'
+    };
+    return labels[statut] || statut || 'En cours';
   };
 
   return (
@@ -120,6 +136,9 @@ function DashboardPage() {
                     <th>Set LEGO</th>
                     <th>Session</th>
                     <th>Date</th>
+                    <th>Statut</th>
+                    <th>Heure d'arrivée</th>
+                    <th>Heure de départ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -129,7 +148,10 @@ function DashboardPage() {
                       <td>{getEleveName(aff.eleve_id)}</td>
                       <td>{getLegoSetName(aff.lego_set_id)}</td>
                       <td>{getSessionInfo(aff.session_id)}</td>
-                      <td>{new Date(aff.date_affectation).toLocaleDateString()}</td>
+                      <td>{formatFrenchDate(aff.date_affectation)}</td>
+                      <td>{getStatusLabel(aff.statut)}</td>
+                      <td>{aff.heure_arrivee || '—'}</td>
+                      <td>{aff.heure_depart || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

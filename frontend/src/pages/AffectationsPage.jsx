@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Form, Modal, Alert, Row, Col } from 'react-bootstrap';
 import axios from 'axios';
 
@@ -15,6 +15,7 @@ function AffectationsPage() {
     lego_set_id: '',
     session_id: '',
     date_affectation: new Date().toISOString().split('T')[0],
+    statut: 'en_cours',
     heure_arrivee: '',
     heure_depart: ''
   });
@@ -23,6 +24,25 @@ function AffectationsPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => { fetchData(); }, []);
+
+  const availableStudents = useMemo(() => eleves, [eleves]);
+
+  const availableLegoSets = useMemo(() => {
+    if (!formData.session_id) {
+      return legoSets;
+    }
+
+    return legoSets.filter((set) => {
+      const isAssignedInSession = affectations.some((aff) => {
+        const sameSet = Number(aff.lego_set_id) === Number(set.id);
+        const sameSession = Number(aff.session_id) === Number(formData.session_id);
+        const sameEditingAffection = editingId !== null && Number(aff.id) === Number(editingId);
+        return sameSet && sameSession && !sameEditingAffection;
+      });
+
+      return !isAssignedInSession;
+    });
+  }, [affectations, editingId, formData.session_id, legoSets]);
 
   const fetchData = async () => {
     try {
@@ -43,7 +63,13 @@ function AffectationsPage() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'session_id' || name === 'date_affectation') {
+        next.lego_set_id = '';
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -75,6 +101,7 @@ function AffectationsPage() {
         lego_set_id: '',
         session_id: '',
         date_affectation: new Date().toISOString().split('T')[0],
+        statut: 'en_cours',
         heure_arrivee: '',
         heure_depart: ''
       });
@@ -90,6 +117,7 @@ function AffectationsPage() {
       lego_set_id: affectation.lego_set_id,
       session_id: affectation.session_id,
       date_affectation: affectation.date_affectation,
+      statut: affectation.statut || 'en_cours',
       heure_arrivee: affectation.heure_arrivee || '',
       heure_depart: affectation.heure_depart || ''
     });
@@ -124,6 +152,15 @@ function AffectationsPage() {
     return session ? `${new Date(session.date).toLocaleDateString()} - ${session.creneau}` : 'N/A';
   };
 
+  const getStatusLabel = (statut) => {
+    const labels = {
+      en_cours: 'En cours',
+      complet: 'Complet',
+      non_fini: 'Non fini'
+    };
+    return labels[statut] || statut;
+  };
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -135,6 +172,7 @@ function AffectationsPage() {
             lego_set_id: '',
             session_id: '',
             date_affectation: new Date().toISOString().split('T')[0],
+            statut: 'en_cours',
             heure_arrivee: '',
             heure_depart: ''
           });
@@ -148,7 +186,7 @@ function AffectationsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
+            <th>ID</th><th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Statut</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -159,6 +197,7 @@ function AffectationsPage() {
               <td>{getLegoSetName(aff.lego_set_id)}</td>
               <td>{getSessionInfo(aff.session_id)}</td>
               <td>{new Date(aff.date_affectation).toLocaleDateString()}</td>
+              <td>{getStatusLabel(aff.statut)}</td>
               <td>{aff.heure_arrivee || '—'}</td>
               <td>{aff.heure_depart || '—'}</td>
               <td>
@@ -179,7 +218,7 @@ function AffectationsPage() {
               <Col sm={9}>
                 <Form.Select name="eleve_id" value={formData.eleve_id} onChange={handleInputChange} required>
                   <option value="">Sélectionnez un élève</option>
-                  {eleves.map(eleve => (
+                  {availableStudents.map(eleve => (
                     <option key={eleve.id} value={eleve.id}>{eleve.prenom} {eleve.nom} ({eleve.classe})</option>
                   ))}
                 </Form.Select>
@@ -190,7 +229,7 @@ function AffectationsPage() {
               <Col sm={9}>
                 <Form.Select name="lego_set_id" value={formData.lego_set_id} onChange={handleInputChange} required>
                   <option value="">Sélectionnez un set</option>
-                  {legoSets.map(set => (
+                  {availableLegoSets.map(set => (
                     <option key={set.id} value={set.id}>{set.nom} ({set.numero})</option>
                   ))}
                 </Form.Select>
@@ -211,6 +250,16 @@ function AffectationsPage() {
               <Form.Label column sm={3}>Date</Form.Label>
               <Col sm={9}>
                 <Form.Control type="date" name="date_affectation" value={formData.date_affectation} onChange={handleInputChange} required />
+              </Col>
+            </Form.Group>
+            <Form.Group as={Row} className="mb-3">
+              <Form.Label column sm={3}>Statut</Form.Label>
+              <Col sm={9}>
+                <Form.Select name="statut" value={formData.statut} onChange={handleInputChange}>
+                  <option value="en_cours">En cours</option>
+                  <option value="complet">Complet</option>
+                  <option value="non_fini">Non fini</option>
+                </Form.Select>
               </Col>
             </Form.Group>
             <Form.Group as={Row} className="mb-3">
