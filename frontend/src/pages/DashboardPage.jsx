@@ -74,6 +74,15 @@ function DashboardPage() {
     return `${formatFrenchDate(session.date)} - ${session.creneau || ''}`.trim() || 'N/A';
   };
 
+  const getStatusLabel = (statut) => {
+    const labels = {
+      en_cours: 'En cours',
+      complet: 'Complet',
+      non_fini: 'Non fini'
+    };
+    return labels[statut] || statut || 'En cours';
+  };
+
   return (
     <div>
       <h1 className="mb-4">Tableau de bord</h1>
@@ -127,6 +136,7 @@ function DashboardPage() {
                     <th>Set LEGO</th>
                     <th>Session</th>
                     <th>Date</th>
+                    <th>Statut</th>
                     <th>Heure d'arrivée</th>
                     <th>Heure de départ</th>
                   </tr>
@@ -139,6 +149,7 @@ function DashboardPage() {
                       <td>{getLegoSetName(aff.lego_set_id)}</td>
                       <td>{getSessionInfo(aff.session_id)}</td>
                       <td>{formatFrenchDate(aff.date_affectation)}</td>
+                      <td>{getStatusLabel(aff.statut)}</td>
                       <td>{aff.heure_arrivee || '—'}</td>
                       <td>{aff.heure_depart || '—'}</td>
                     </tr>

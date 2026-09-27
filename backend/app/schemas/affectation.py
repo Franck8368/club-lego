@@ -5,8 +5,17 @@ class AffectationBase(BaseModel):
     eleve_id: int
     lego_set_id: int
     session_id: int
+    statut: str = 'en_cours'
     heure_arrivee: time | None = None
     heure_depart: time | None = None
+
+    @field_validator('statut')
+    @classmethod
+    def validate_statut(cls, value):
+        allowed = {'en_cours', 'complet', 'non_fini'}
+        if value not in allowed:
+            raise ValueError('Le statut doit être : en_cours, complet ou non_fini.')
+        return value
 
     @field_validator('heure_arrivee', 'heure_depart', mode='before')
     @classmethod

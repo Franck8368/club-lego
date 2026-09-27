@@ -17,10 +17,16 @@ def ensure_affectation_columns():
 
     existing_columns = {column["name"] for column in inspector.get_columns("affectations")}
     with engine.begin() as connection:
+        if "statut" not in existing_columns:
+            connection.execute(text("ALTER TABLE affectations ADD COLUMN statut VARCHAR(20) NOT NULL DEFAULT 'en_cours'"))
         if "heure_arrivee" not in existing_columns:
             connection.execute(text("ALTER TABLE affectations ADD COLUMN heure_arrivee TIME"))
         if "heure_depart" not in existing_columns:
             connection.execute(text("ALTER TABLE affectations ADD COLUMN heure_depart TIME"))
+
+        connection.execute(text("DROP INDEX IF EXISTS uq_affectation_eleve_session"))
+        connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_eleve_set_session ON affectations (eleve_id, lego_set_id, session_id)"))
+        connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_set_session ON affectations (lego_set_id, session_id)"))
 
 
 def get_db():
