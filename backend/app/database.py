@@ -24,9 +24,17 @@ def ensure_affectation_columns():
         if "heure_depart" not in existing_columns:
             connection.execute(text("ALTER TABLE affectations ADD COLUMN heure_depart TIME"))
 
-        connection.execute(text("DROP INDEX IF EXISTS uq_affectation_eleve_session"))
+        legacy_indexes = connection.execute(
+            text("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='affectations' AND name NOT LIKE 'sqlite_%'")
+        ).fetchall()
+        for (index_name,) in legacy_indexes:
+            if index_name in {"uq_affectation_eleve_set_session", "uq_affectation_set_session", "uq_affectation_set_session_active"}:
+                connection.execute(text(f"DROP INDEX IF EXISTS {index_name}"))
+            elif "affectation" in index_name.lower() and ("session" in index_name.lower() or "set" in index_name.lower()):
+                connection.execute(text(f"DROP INDEX IF EXISTS {index_name}"))
+
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_eleve_set_session ON affectations (eleve_id, lego_set_id, session_id)"))
-        connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_set_session ON affectations (lego_set_id, session_id)"))
+        connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_set_session_active ON affectations (lego_set_id, session_id) WHERE statut != 'complet'"))
 
 
 def get_db():

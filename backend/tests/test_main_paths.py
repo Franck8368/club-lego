@@ -4,7 +4,7 @@ from pathlib import Path
 
 from starlette.routing import Mount
 
-from app.crud.affectation import create_affectation, validate_lego_set_availability
+from app.crud.affectation import create_affectation, update_affectation, validate_lego_set_availability
 from app.database import SessionLocal
 from app.main import app
 from app.models.affectation import Affectation
@@ -172,6 +172,7 @@ class MainPathResolutionTest(unittest.TestCase):
                 lego_set_id=lego_set.id,
                 session_id=session.id,
                 date_affectation=session.date,
+                statut='en_cours',
             ))
             db.commit()
 
@@ -183,6 +184,133 @@ class MainPathResolutionTest(unittest.TestCase):
                     date_affectation=session.date,
                     eleve_id=second_eleve.id,
                 )
+        finally:
+            db.close()
+
+    def test_same_student_same_slot_shares_arrival_and_departure_times(self):
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            first_set = LegoSet(numero='SET-106', nom='Train', theme='Transport', nombre_pieces=180, disponible=True)
+            second_set = LegoSet(numero='SET-107', nom='Maison', theme='Construction', nombre_pieces=220, disponible=True)
+            session = Session(date=date(2026, 9, 26), creneau='Matin', ouvert=True)
+
+            db.add_all([eleve, first_set, second_set, session])
+            db.commit()
+            db.refresh(eleve)
+            db.refresh(first_set)
+            db.refresh(second_set)
+            db.refresh(session)
+
+            first_affectation = create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=eleve.id,
+                    lego_set_id=first_set.id,
+                    session_id=session.id,
+                    date_affectation=session.date,
+                    heure_arrivee=time(9, 0),
+                    heure_depart=time(11, 30),
+                    statut='en_cours',
+                ),
+            )
+
+            second_affectation = create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=eleve.id,
+                    lego_set_id=second_set.id,
+                    session_id=session.id,
+                    date_affectation=session.date,
+                    statut='en_cours',
+                ),
+            )
+
+            self.assertEqual(first_affectation.heure_arrivee, time(9, 0))
+            self.assertEqual(first_affectation.heure_depart, time(11, 30))
+            self.assertEqual(second_affectation.heure_arrivee, time(9, 0))
+            self.assertEqual(second_affectation.heure_depart, time(11, 30))
+
+            updated = update_affectation(
+                db,
+                second_affectation.id,
+                {
+                    'eleve_id': eleve.id,
+                    'lego_set_id': second_set.id,
+                    'session_id': session.id,
+                    'date_affectation': session.date,
+                    'statut': 'en_cours',
+                    'heure_arrivee': time(10, 0),
+                    'heure_depart': time(12, 0),
+                },
+            )
+            self.assertEqual(updated.heure_arrivee, time(10, 0))
+            self.assertEqual(updated.heure_depart, time(12, 0))
+            self.assertEqual(db.query(Affectation).filter(Affectation.eleve_id == eleve.id, Affectation.session_id == session.id).count(), 2)
+            for row in db.query(Affectation).filter(Affectation.eleve_id == eleve.id, Affectation.session_id == session.id):
+                self.assertEqual(row.heure_arrivee, time(10, 0))
+                self.assertEqual(row.heure_depart, time(12, 0))
+        finally:
+            db.close()
+
+    def test_completed_assignment_does_not_block_set_reuse(self):
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            first_eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            second_eleve = Eleve(nom='Dupont', prenom='Paul', classe='CM1', sexe='M', date_inscription=date(2026, 9, 1))
+            lego_set = LegoSet(numero='SET-108', nom='Aéroplane', theme='Voyage', nombre_pieces=300, disponible=True)
+            session = Session(date=date(2026, 9, 28), creneau='Matin', ouvert=True)
+
+            db.add_all([first_eleve, second_eleve, lego_set, session])
+            db.commit()
+            db.refresh(first_eleve)
+            db.refresh(second_eleve)
+            db.refresh(lego_set)
+            db.refresh(session)
+
+            db.add(Affectation(
+                eleve_id=first_eleve.id,
+                lego_set_id=lego_set.id,
+                session_id=session.id,
+                date_affectation=session.date,
+                statut='complet',
+            ))
+            db.commit()
+
+            self.assertTrue(
+                validate_lego_set_availability(
+                    db,
+                    lego_set_id=lego_set.id,
+                    session_id=session.id,
+                    date_affectation=session.date,
+                    eleve_id=second_eleve.id,
+                )
+            )
+
+            created = create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=second_eleve.id,
+                    lego_set_id=lego_set.id,
+                    session_id=session.id,
+                    date_affectation=session.date,
+                    statut='en_cours',
+                ),
+            )
+            self.assertEqual(created.eleve_id, second_eleve.id)
+            self.assertEqual(created.lego_set_id, lego_set.id)
         finally:
             db.close()
 

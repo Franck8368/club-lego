@@ -25,7 +25,8 @@ def validate_lego_set_availability(
         if existing_assignment is not None:
             if eleve_id is not None and existing_assignment.eleve_id == eleve_id:
                 raise ValueError('Cet élève a déjà ce set affecté pour cette session.')
-            raise ValueError('Ce set est déjà affecté pour cette session.')
+            if existing_assignment.statut != 'complet':
+                raise ValueError('Ce set est déjà affecté pour cette session.')
 
     return True
 
@@ -50,7 +51,40 @@ def create_affectation(db: Session, affectation: AffectationCreate):
         date_affectation=affectation.date_affectation,
         eleve_id=affectation.eleve_id,
     )
-    db_affectation = AffectationModel(**affectation.model_dump())
+
+    same_student_session = db.query(AffectationModel).filter(
+        AffectationModel.eleve_id == affectation.eleve_id,
+        AffectationModel.session_id == affectation.session_id,
+        AffectationModel.date_affectation == affectation.date_affectation,
+    )
+
+    effective_arrival = affectation.heure_arrivee
+    effective_departure = affectation.heure_depart
+    if effective_arrival is None or effective_departure is None:
+        existing_times = same_student_session.filter(
+            (AffectationModel.heure_arrivee.is_not(None)) | (AffectationModel.heure_depart.is_not(None))
+        ).order_by(AffectationModel.id).first()
+        if existing_times is not None:
+            if effective_arrival is None:
+                effective_arrival = existing_times.heure_arrivee
+            if effective_departure is None:
+                effective_departure = existing_times.heure_depart
+
+    if effective_arrival is not None and effective_departure is not None:
+        same_student_session.update({
+            'heure_arrivee': effective_arrival,
+            'heure_depart': effective_departure,
+        }, synchronize_session=False)
+
+    db_affectation = AffectationModel(
+        eleve_id=affectation.eleve_id,
+        lego_set_id=affectation.lego_set_id,
+        session_id=affectation.session_id,
+        date_affectation=affectation.date_affectation,
+        statut=affectation.statut,
+        heure_arrivee=effective_arrival,
+        heure_depart=effective_departure,
+    )
     db.add(db_affectation)
     try:
         db.commit()
@@ -72,6 +106,28 @@ def update_affectation(db: Session, affectation_id: int, affectation_data: dict)
             eleve_id=affectation_data.get('eleve_id', db_affectation.eleve_id),
             exclude_affectation_id=affectation_id,
         )
+
+        if 'heure_arrivee' in affectation_data or 'heure_depart' in affectation_data:
+            new_arrival = affectation_data.get('heure_arrivee', db_affectation.heure_arrivee)
+            new_departure = affectation_data.get('heure_depart', db_affectation.heure_depart)
+
+            related_rows = db.query(AffectationModel).filter(
+                AffectationModel.eleve_id == db_affectation.eleve_id,
+                AffectationModel.session_id == db_affectation.session_id,
+                AffectationModel.date_affectation == db_affectation.date_affectation,
+            )
+            existing_times = related_rows.order_by(AffectationModel.id).first()
+            if new_arrival is None and existing_times is not None:
+                new_arrival = existing_times.heure_arrivee
+            if new_departure is None and existing_times is not None:
+                new_departure = existing_times.heure_depart
+
+            if new_arrival is not None and new_departure is not None:
+                related_rows.filter(AffectationModel.id != affectation_id).update({
+                    'heure_arrivee': new_arrival,
+                    'heure_depart': new_departure,
+                }, synchronize_session=False)
+
         for key, value in affectation_data.items():
             setattr(db_affectation, key, value)
         try:
