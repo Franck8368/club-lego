@@ -131,7 +131,6 @@ function DashboardPage() {
               <Table striped bordered hover responsive>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>élève</th>
                     <th>Set LEGO</th>
                     <th>Session</th>
@@ -144,7 +143,6 @@ function DashboardPage() {
                 <tbody>
                   {recentAffectations.map(aff => (
                     <tr key={aff.id}>
-                      <td>{aff.id}</td>
                       <td>{getEleveName(aff.eleve_id)}</td>
                       <td>{getLegoSetName(aff.lego_set_id)}</td>
                       <td>{getSessionInfo(aff.session_id)}</td>

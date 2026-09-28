@@ -95,13 +95,12 @@ function SessionsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>Période d'ouverture</th><th>Statut</th><th>Actions</th>
+            <th>Période d'ouverture</th><th>Statut</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {sessions.map(session => (
             <tr key={session.id}>
-              <td>{session.id}</td>
               <td>{formatSessionPeriod(session)}</td>
               <td>
                 <Badge

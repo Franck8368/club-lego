@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Form, Modal, Alert } from 'react-bootstrap';
 import axios from 'axios';
 
@@ -11,8 +11,34 @@ function ElevesPage() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => { fetchEleves(); }, []);
+
+  const elevesTries = useMemo(() => {
+    if (!sortConfig.key) return eleves;
+
+    return [...eleves].sort((a, b) => {
+      const comparaison = String(a[sortConfig.key] || '').localeCompare(
+        String(b[sortConfig.key] || ''),
+        'fr',
+        { sensitivity: 'base', numeric: true }
+      );
+      return sortConfig.direction === 'asc' ? comparaison : -comparaison;
+    });
+  }, [eleves, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortLabel = (key) => {
+    if (sortConfig.key !== key) return '';
+    return sortConfig.direction === 'asc' ? ' (tri croissant)' : ' (tri décroissant)';
+  };
 
   const fetchEleves = async () => {
     try {
@@ -82,13 +108,25 @@ function ElevesPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>Nom</th><th>Prénom</th><th>Classe</th><th>Sexe</th><th>Date inscription</th><th>Actions</th>
+            <th aria-sort={sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+              <Button variant="link" className="p-0 text-dark text-decoration-none" onClick={() => handleSort('nom')}>
+                Nom{sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ''}
+                <span className="visually-hidden">{getSortLabel('nom')}</span>
+              </Button>
+            </th>
+            <th>Prénom</th>
+            <th aria-sort={sortConfig.key === 'classe' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+              <Button variant="link" className="p-0 text-dark text-decoration-none" onClick={() => handleSort('classe')}>
+                Classe{sortConfig.key === 'classe' ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ''}
+                <span className="visually-hidden">{getSortLabel('classe')}</span>
+              </Button>
+            </th>
+            <th>Sexe</th><th>Date inscription</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {eleves.map(eleve => (
+          {elevesTries.map(eleve => (
             <tr key={eleve.id}>
-              <td>{eleve.id}</td>
               <td>{eleve.nom}</td>
               <td>{eleve.prenom}</td>
               <td>{eleve.classe}</td>

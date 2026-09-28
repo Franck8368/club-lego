@@ -82,13 +82,12 @@ function LegoSetsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>Numéro</th><th>Nom</th><th>Thème</th><th>Pièces</th><th>Disponible</th><th>Actions</th>
+            <th>Numéro</th><th>Nom</th><th>Thème</th><th>Pièces</th><th>Disponible</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {legoSets.map(set => (
             <tr key={set.id}>
-              <td>{set.id}</td>
               <td>{set.numero}</td>
               <td>{set.nom}</td>
               <td>{set.theme || 'N/A'}</td>

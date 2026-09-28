@@ -9,6 +9,7 @@ function AffectationsPage() {
   const [eleves, setEleves] = useState([]);
   const [legoSets, setLegoSets] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [sessionAffichee, setSessionAffichee] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     eleve_id: '',
@@ -26,6 +27,11 @@ function AffectationsPage() {
   useEffect(() => { fetchData(); }, []);
 
   const availableStudents = useMemo(() => eleves, [eleves]);
+
+  const affectationsAffichees = useMemo(() => {
+    if (!sessionAffichee) return affectations;
+    return affectations.filter(aff => String(aff.session_id) === sessionAffichee);
+  }, [affectations, sessionAffichee]);
 
   const availableLegoSets = useMemo(() => {
     if (!formData.session_id) {
@@ -221,16 +227,31 @@ function AffectationsPage() {
       {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
       {success && <Alert variant="success" onClose={() => setSuccess('')} dismissible>{success}</Alert>}
 
+      <Form.Group className="mb-3" controlId="filtre-session-affectations">
+        <Form.Label>Session à afficher</Form.Label>
+        <Form.Select value={sessionAffichee} onChange={e => setSessionAffichee(e.target.value)}>
+          <option value="">Toutes les sessions</option>
+          {sessions.map(session => (
+            <option key={session.id} value={session.id}>{getSessionInfo(session.id)}</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Statut</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
+            <th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Statut</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {affectations.map(aff => (
+          {affectationsAffichees.length === 0 ? (
+            <tr>
+              <td colSpan={8} className="text-center">
+                {sessionAffichee ? 'Aucune affectation pour cette session.' : 'Aucune affectation.'}
+              </td>
+            </tr>
+          ) : affectationsAffichees.map(aff => (
             <tr key={aff.id}>
-              <td>{aff.id}</td>
               <td>{getEleveName(aff.eleve_id)}</td>
               <td>{getLegoSetName(aff.lego_set_id)}</td>
               <td>{getSessionInfo(aff.session_id)}</td>
