@@ -37,7 +37,8 @@ function AffectationsPage() {
         const sameSet = Number(aff.lego_set_id) === Number(set.id);
         const sameSession = Number(aff.session_id) === Number(formData.session_id);
         const sameEditingAffection = editingId !== null && Number(aff.id) === Number(editingId);
-        return sameSet && sameSession && !sameEditingAffection;
+        const isActive = aff.statut !== 'complet';
+        return sameSet && sameSession && isActive && !sameEditingAffection;
       });
 
       return !isAssignedInSession;
@@ -65,9 +66,32 @@ function AffectationsPage() {
     const { name, value } = e.target;
     setFormData(prev => {
       const next = { ...prev, [name]: value };
+
       if (name === 'session_id' || name === 'date_affectation') {
-        next.lego_set_id = '';
+        const selectedSessionId = name === 'session_id' ? value : next.session_id;
+        const selectedSetId = next.lego_set_id;
+
+        if (selectedSetId && selectedSessionId) {
+          const setStillAvailable = !legoSets.some((set) => {
+            if (Number(set.id) !== Number(selectedSetId)) {
+              return false;
+            }
+
+            return affectations.some((aff) => {
+              const sameSet = Number(aff.lego_set_id) === Number(set.id);
+              const sameSession = Number(aff.session_id) === Number(selectedSessionId);
+              const sameEditingAffection = editingId !== null && Number(aff.id) === Number(editingId);
+              const isActive = aff.statut !== 'complet';
+              return sameSet && sameSession && isActive && !sameEditingAffection;
+            });
+          });
+
+          if (!setStillAvailable) {
+            next.lego_set_id = '';
+          }
+        }
       }
+
       return next;
     });
   };
@@ -122,6 +146,20 @@ function AffectationsPage() {
       heure_depart: affectation.heure_depart || ''
     });
     setEditingId(affectation.id);
+    setShowModal(true);
+  };
+
+  const handleAddSetForSession = (affectation) => {
+    setEditingId(null);
+    setFormData({
+      eleve_id: affectation.eleve_id,
+      lego_set_id: '',
+      session_id: affectation.session_id,
+      date_affectation: affectation.date_affectation,
+      statut: 'en_cours',
+      heure_arrivee: affectation.heure_arrivee || '',
+      heure_depart: affectation.heure_depart || ''
+    });
     setShowModal(true);
   };
 
@@ -201,6 +239,7 @@ function AffectationsPage() {
               <td>{aff.heure_arrivee || '—'}</td>
               <td>{aff.heure_depart || '—'}</td>
               <td>
+                <Button variant="secondary" size="sm" onClick={() => handleAddSetForSession(aff)} className="me-2">Nouveau set</Button>
                 <Button variant="warning" size="sm" onClick={() => handleEdit(aff)} className="me-2">Modifier</Button>
                 <Button variant="danger" size="sm" onClick={() => handleDelete(aff.id)}>Supprimer</Button>
               </td>

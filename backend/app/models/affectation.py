@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Date, Time, UniqueConstraint, String
+from sqlalchemy import Column, Integer, ForeignKey, Date, Time, UniqueConstraint, String, Index, text
 from sqlalchemy.orm import relationship
 from . import Base  # <-- Utilisez la Base commune
 
@@ -6,7 +6,13 @@ class Affectation(Base):
     __tablename__ = "affectations"
     __table_args__ = (
         UniqueConstraint("eleve_id", "lego_set_id", "session_id", name="uq_affectation_eleve_set_session"),
-        UniqueConstraint("lego_set_id", "session_id", name="uq_affectation_set_session"),
+        Index(
+            "uq_affectation_set_session_active",
+            "lego_set_id",
+            "session_id",
+            unique=True,
+            sqlite_where=text("statut != 'complet'"),
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
