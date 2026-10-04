@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # 1. Base de données
-from app.database import engine, get_db, ensure_affectation_columns
+from app.database import engine, get_db, ensure_affectation_columns, ensure_lego_set_columns
 
 # 2. Imports EXPLICITES de TOUS les modèles et de la Base
 from app.models import Base, Eleve, LegoSet, Session, Affectation
@@ -39,6 +39,7 @@ app = FastAPI(title="Club LEGO", version="0.1.0")
 
 # 4. Créer les tables (APRÈS tous les imports)
 Base.metadata.create_all(bind=engine)
+ensure_lego_set_columns()
 ensure_affectation_columns()
 
 # 5. Middleware CORS

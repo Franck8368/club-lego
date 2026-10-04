@@ -1,13 +1,28 @@
+import os
+
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 # Chemin relatif simple
-SQLALCHEMY_DATABASE_URL = "sqlite:///./lego_club.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lego_club.db")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def ensure_lego_set_columns(database_engine=engine):
+    inspector = inspect(database_engine)
+    if not inspector.has_table("lego_sets"):
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("lego_sets")}
+    if "marque" not in existing_columns:
+        with database_engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE lego_sets ADD COLUMN marque VARCHAR(50) NOT NULL DEFAULT ''")
+            )
 
 
 def ensure_affectation_columns():

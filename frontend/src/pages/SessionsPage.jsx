@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Form, Modal, Alert, Badge } from 'react-bootstrap';
 import axios from 'axios';
+import { CalendarDays } from 'lucide-react';
 
 const API_URL = '/api';
 
@@ -81,7 +82,9 @@ function SessionsPage() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Gestion des Sessions</h1>
+        <h1 className="d-flex align-items-center gap-2 mb-0">
+          <CalendarDays size={26} aria-hidden="true" />Gestion des Sessions
+        </h1>
         <Button variant="primary" onClick={() => {
           setEditingId(null);
           setFormData({ date: new Date().toISOString().split('T')[0], creneau: '', ouvert: true });

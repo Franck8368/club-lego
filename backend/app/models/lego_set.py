@@ -4,6 +4,7 @@ from . import Base  # <-- Utilisez la Base commune
 class LegoSet(Base):
     __tablename__ = "lego_sets"
     id = Column(Integer, primary_key=True, index=True)
+    marque = Column(String(50), nullable=False, default="", server_default="")
     numero = Column(String(20), unique=True, nullable=False)
     nom = Column(String(100), nullable=False)
     theme = Column(String(50))

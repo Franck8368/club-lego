@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Form, Modal, Alert } from 'react-bootstrap';
 import axios from 'axios';
+import { Users } from 'lucide-react';
+import { getNiveauLabel } from '../utils/eleves';
 
 const API_URL = '/api';
 
@@ -27,6 +29,27 @@ function ElevesPage() {
       return sortConfig.direction === 'asc' ? comparaison : -comparaison;
     });
   }, [eleves, sortConfig]);
+
+  const statistiquesEleves = useMemo(() => {
+    const niveaux = eleves.reduce((comptages, eleve) => {
+      if (eleve.classe) {
+        const niveau = getNiveauLabel(eleve.classe);
+        comptages[niveau] = (comptages[niveau] || 0) + 1;
+      }
+      return comptages;
+    }, {});
+    const classesTriees = Object.entries(niveaux).sort(([classeA], [classeB]) => {
+      const niveauA = Number((classeA.match(/\d+/) || ['0'])[0]);
+      const niveauB = Number((classeB.match(/\d+/) || ['0'])[0]);
+      return niveauB - niveauA || classeA.localeCompare(classeB, 'fr');
+    });
+    const sexesTries = [
+      ['Féminin', eleves.filter((eleve) => eleve.sexe === 'F').length],
+      ['Masculin', eleves.filter((eleve) => eleve.sexe === 'M').length]
+    ];
+
+    return { classesTriees, sexesTries };
+  }, [eleves]);
 
   const handleSort = (key) => {
     setSortConfig(prev => ({
@@ -93,8 +116,30 @@ function ElevesPage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Gestion des élèves</h1>
+      <div className="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
+        <h1 className="d-flex align-items-center gap-2 mb-0">
+          <Users size={26} aria-hidden="true" />Gestion des élèves
+        </h1>
+        <div className="d-flex flex-wrap gap-3" aria-label="Répartition des élèves">
+          <div className="d-flex flex-wrap align-items-center gap-2" aria-label="Nombre d’élèves par niveau">
+            <span className="small text-muted">Par niveau</span>
+            {statistiquesEleves.classesTriees.length === 0 ? (
+              <span className="small text-muted">Aucun élève</span>
+            ) : statistiquesEleves.classesTriees.map(([classe, nombre]) => (
+              <div key={classe} className="border rounded px-2 py-1 bg-white small text-nowrap">
+                {classe} : <strong>{nombre}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="d-flex flex-wrap align-items-center gap-2" aria-label="Nombre d’élèves par sexe">
+            <span className="small text-muted">Par sexe</span>
+            {statistiquesEleves.sexesTries.map(([sexe, nombre]) => (
+              <div key={sexe} className="border rounded px-2 py-1 bg-white small text-nowrap">
+                {sexe} : <strong>{nombre}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
         <Button variant="primary" onClick={() => {
           setEditingId(null);
           setFormData({ nom: '', prenom: '', classe: '', sexe: 'M' });
@@ -162,7 +207,6 @@ function ElevesPage() {
               <Form.Select name="sexe" value={formData.sexe} onChange={handleInputChange} required>
                 <option value="M">Masculin</option>
                 <option value="F">Féminin</option>
-                <option value="Autre">Autre</option>
               </Form.Select>
             </Form.Group>
             <Button variant="primary" type="submit">{editingId ? 'Mettre à jour' : 'Ajouter'}</Button>
