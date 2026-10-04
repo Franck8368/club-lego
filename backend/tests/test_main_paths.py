@@ -2,19 +2,44 @@ import unittest
 from datetime import date, time
 from pathlib import Path
 
+from sqlalchemy import create_engine, text
 from starlette.routing import Mount
 
 from app.crud.affectation import create_affectation, update_affectation, validate_lego_set_availability
-from app.database import SessionLocal
+from app.database import SessionLocal, ensure_lego_set_columns
 from app.main import app
 from app.models.affectation import Affectation
 from app.models.eleve import Eleve
 from app.models.lego_set import LegoSet
 from app.models.session import Session
 from app.schemas.affectation import AffectationCreate
+from app.schemas.lego_set import LegoSetCreate
 
 
 class MainPathResolutionTest(unittest.TestCase):
+    def test_legacy_lego_sets_get_an_empty_brand(self):
+        database_engine = create_engine("sqlite://")
+        try:
+            with database_engine.begin() as connection:
+                connection.execute(text(
+                    "CREATE TABLE lego_sets (id INTEGER PRIMARY KEY, numero VARCHAR(20), nom VARCHAR(100))"
+                ))
+                connection.execute(text(
+                    "INSERT INTO lego_sets (id, numero, nom) VALUES (1, 'SET-OLD', 'Ancien set')"
+                ))
+
+            ensure_lego_set_columns(database_engine)
+
+            with database_engine.connect() as connection:
+                marque = connection.execute(
+                    text("SELECT marque FROM lego_sets WHERE id = 1")
+                ).scalar_one()
+
+            self.assertEqual(marque, "")
+            self.assertEqual(LegoSetCreate(numero="SET-NEW", nom="Nouveau set").marque, "")
+        finally:
+            database_engine.dispose()
+
     def test_static_directory_uses_repo_root(self):
         repo_root = Path(__file__).resolve().parents[2]
         static_dir = repo_root / "frontend" / "build" / "static"
@@ -311,6 +336,46 @@ class MainPathResolutionTest(unittest.TestCase):
             )
             self.assertEqual(created.eleve_id, second_eleve.id)
             self.assertEqual(created.lego_set_id, lego_set.id)
+        finally:
+            db.close()
+
+    def test_incomplete_assignment_blocks_set_reuse_in_another_session(self):
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            lego_set = LegoSet(numero='SET-109', nom='Véhicule lunaire', marque='CaDa', nombre_pieces=192, disponible=True)
+            first_session = Session(date=date(2026, 9, 26), creneau='Matin', ouvert=False)
+            next_session = Session(date=date(2026, 10, 3), creneau='Matin', ouvert=True)
+            db.add_all([eleve, lego_set, first_session, next_session])
+            db.commit()
+            db.refresh(eleve)
+            db.refresh(lego_set)
+            db.refresh(first_session)
+            db.refresh(next_session)
+
+            db.add(Affectation(
+                eleve_id=eleve.id,
+                lego_set_id=lego_set.id,
+                session_id=first_session.id,
+                date_affectation=first_session.date,
+                statut='en_cours',
+            ))
+            db.commit()
+
+            with self.assertRaisesRegex(ValueError, 'indisponible'):
+                validate_lego_set_availability(
+                    db,
+                    lego_set_id=lego_set.id,
+                    session_id=next_session.id,
+                    date_affectation=next_session.date,
+                    eleve_id=eleve.id,
+                )
         finally:
             db.close()
 

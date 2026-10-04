@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 class LegoSetBase(BaseModel):
+    marque: str = ""
     numero: str
     nom: str
     theme: Optional[str] = None

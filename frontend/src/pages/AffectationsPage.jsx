@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Form, Modal, Alert, Row, Col } from 'react-bootstrap';
 import axios from 'axios';
+import { ClipboardList } from 'lucide-react';
 
 const API_URL = '/api';
 
@@ -9,6 +10,7 @@ function AffectationsPage() {
   const [eleves, setEleves] = useState([]);
   const [legoSets, setLegoSets] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [sessionAffichee, setSessionAffichee] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     eleve_id: '',
@@ -27,23 +29,40 @@ function AffectationsPage() {
 
   const availableStudents = useMemo(() => eleves, [eleves]);
 
-  const availableLegoSets = useMemo(() => {
-    if (!formData.session_id) {
-      return legoSets;
-    }
+  const affectationsAffichees = useMemo(() => {
+    if (!sessionAffichee) return affectations;
+    return affectations.filter(aff => String(aff.session_id) === sessionAffichee);
+  }, [affectations, sessionAffichee]);
 
+  const availableLegoSets = useMemo(() => {
     return legoSets.filter((set) => {
-      const isAssignedInSession = affectations.some((aff) => {
+      const isAssigned = affectations.some((aff) => {
         const sameSet = Number(aff.lego_set_id) === Number(set.id);
-        const sameSession = Number(aff.session_id) === Number(formData.session_id);
         const sameEditingAffection = editingId !== null && Number(aff.id) === Number(editingId);
         const isActive = aff.statut !== 'complet';
-        return sameSet && sameSession && isActive && !sameEditingAffection;
+        return sameSet && isActive && !sameEditingAffection;
       });
 
-      return !isAssignedInSession;
+      return set.disponible !== false && !isAssigned;
     });
   }, [affectations, editingId, formData.session_id, legoSets]);
+
+  const { setsEnCoursCount, setsDisponiblesCount } = useMemo(() => {
+    const setsEnCours = new Set(
+      affectations
+        .filter((aff) => aff.statut !== 'complet')
+        .map((aff) => Number(aff.lego_set_id))
+    );
+    const setsEnCoursDansInventaire = legoSets.filter((set) => setsEnCours.has(Number(set.id)));
+    const setsDisponibles = legoSets.filter(
+      (set) => set.disponible !== false && !setsEnCours.has(Number(set.id))
+    );
+
+    return {
+      setsEnCoursCount: setsEnCoursDansInventaire.length,
+      setsDisponiblesCount: setsDisponibles.length
+    };
+  }, [affectations, legoSets]);
 
   const fetchData = async () => {
     try {
@@ -68,23 +87,15 @@ function AffectationsPage() {
       const next = { ...prev, [name]: value };
 
       if (name === 'session_id' || name === 'date_affectation') {
-        const selectedSessionId = name === 'session_id' ? value : next.session_id;
         const selectedSetId = next.lego_set_id;
 
-        if (selectedSetId && selectedSessionId) {
-          const setStillAvailable = !legoSets.some((set) => {
-            if (Number(set.id) !== Number(selectedSetId)) {
-              return false;
-            }
-
-            return affectations.some((aff) => {
-              const sameSet = Number(aff.lego_set_id) === Number(set.id);
-              const sameSession = Number(aff.session_id) === Number(selectedSessionId);
-              const sameEditingAffection = editingId !== null && Number(aff.id) === Number(editingId);
-              const isActive = aff.statut !== 'complet';
-              return sameSet && sameSession && isActive && !sameEditingAffection;
-            });
-          });
+        if (selectedSetId) {
+          const selectedSet = legoSets.find((set) => Number(set.id) === Number(selectedSetId));
+          const setStillAvailable = selectedSet?.disponible !== false && !affectations.some((aff) => (
+            Number(aff.lego_set_id) === Number(selectedSetId)
+            && aff.statut !== 'complet'
+            && !(editingId !== null && Number(aff.id) === Number(editingId))
+          ));
 
           if (!setStillAvailable) {
             next.lego_set_id = '';
@@ -202,7 +213,9 @@ function AffectationsPage() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Gestion des Affectations</h1>
+        <h1 className="d-flex align-items-center gap-2 mb-0">
+          <ClipboardList size={26} aria-hidden="true" />Gestion des Affectations
+        </h1>
         <Button variant="primary" onClick={() => {
           setEditingId(null);
           setFormData({
@@ -221,16 +234,46 @@ function AffectationsPage() {
       {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
       {success && <Alert variant="success" onClose={() => setSuccess('')} dismissible>{success}</Alert>}
 
+      <Row className="g-3 mb-4" aria-label="Disponibilité des sets LEGO">
+        <Col sm={6}>
+          <div className="border rounded bg-white p-3 h-100">
+            <div className="text-muted">Sets en cours</div>
+            <div className="fs-2 fw-semibold text-danger">{setsEnCoursCount}</div>
+          </div>
+        </Col>
+        <Col sm={6}>
+          <div className="border rounded bg-white p-3 h-100">
+            <div className="text-muted">Sets disponibles</div>
+            <div className="fs-2 fw-semibold text-success">{setsDisponiblesCount}</div>
+          </div>
+        </Col>
+      </Row>
+
+      <Form.Group className="mb-3" controlId="filtre-session-affectations">
+        <Form.Label>Session à afficher</Form.Label>
+        <Form.Select value={sessionAffichee} onChange={e => setSessionAffichee(e.target.value)}>
+          <option value="">Toutes les sessions</option>
+          {sessions.map(session => (
+            <option key={session.id} value={session.id}>{getSessionInfo(session.id)}</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Statut</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
+            <th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Statut</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {affectations.map(aff => (
+          {affectationsAffichees.length === 0 ? (
+            <tr>
+              <td colSpan={8} className="text-center">
+                {sessionAffichee ? 'Aucune affectation pour cette session.' : 'Aucune affectation.'}
+              </td>
+            </tr>
+          ) : affectationsAffichees.map(aff => (
             <tr key={aff.id}>
-              <td>{aff.id}</td>
               <td>{getEleveName(aff.eleve_id)}</td>
               <td>{getLegoSetName(aff.lego_set_id)}</td>
               <td>{getSessionInfo(aff.session_id)}</td>

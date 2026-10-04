@@ -13,20 +13,24 @@ def validate_lego_set_availability(
     eleve_id: int | None = None,
     exclude_affectation_id: int | None = None,
 ):
-    if lego_set_id is not None and session_id is not None:
-        set_used_in_session = db.query(AffectationModel).filter(
+    if lego_set_id is not None:
+        active_assignment = db.query(AffectationModel).filter(
             AffectationModel.lego_set_id == lego_set_id,
-            AffectationModel.session_id == session_id,
+            AffectationModel.statut != 'complet',
         )
         if exclude_affectation_id is not None:
-            set_used_in_session = set_used_in_session.filter(AffectationModel.id != exclude_affectation_id)
+            active_assignment = active_assignment.filter(AffectationModel.id != exclude_affectation_id)
 
-        existing_assignment = set_used_in_session.first()
+        existing_assignment = active_assignment.first()
         if existing_assignment is not None:
-            if eleve_id is not None and existing_assignment.eleve_id == eleve_id:
+            if (
+                session_id is not None
+                and existing_assignment.session_id == session_id
+                and eleve_id is not None
+                and existing_assignment.eleve_id == eleve_id
+            ):
                 raise ValueError('Cet élève a déjà ce set affecté pour cette session.')
-            if existing_assignment.statut != 'complet':
-                raise ValueError('Ce set est déjà affecté pour cette session.')
+            raise ValueError('Ce set est en cours et reste indisponible jusqu’à ce qu’il soit complet.')
 
     return True
 

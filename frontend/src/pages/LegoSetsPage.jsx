@@ -1,23 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Form, Modal, Alert, Badge } from 'react-bootstrap';
 import axios from 'axios';
+import { Package } from 'lucide-react';
 
 const API_URL = '/api';
 
 function LegoSetsPage() {
   const [legoSets, setLegoSets] = useState([]);
+  const [affectations, setAffectations] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
+  const [formData, setFormData] = useState({ marque: '', numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { fetchLegoSets(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const fetchLegoSets = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API_URL}/lego_sets`);
-      setLegoSets(response.data);
+      const [setsRes, affectationsRes] = await Promise.all([
+        axios.get(`${API_URL}/lego_sets`),
+        axios.get(`${API_URL}/affectations`)
+      ]);
+      setLegoSets(setsRes.data);
+      setAffectations(affectationsRes.data);
     } catch (err) {
       setError('Erreur lors de la récupération des sets LEGO');
     }
@@ -38,9 +44,9 @@ function LegoSetsPage() {
         await axios.post(`${API_URL}/lego_sets`, formData);
         setSuccess('Set LEGO ajouté');
       }
-      fetchLegoSets();
+      fetchData();
       setShowModal(false);
-      setFormData({ numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
+      setFormData({ marque: '', numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
       setEditingId(null);
     } catch (err) {
       setError('Erreur lors de la sauvegarde');
@@ -48,7 +54,7 @@ function LegoSetsPage() {
   };
 
   const handleEdit = (set) => {
-    setFormData({ numero: set.numero, nom: set.nom, theme: set.theme || '', nombre_pieces: set.nombre_pieces || 0, disponible: set.disponible });
+    setFormData({ marque: set.marque || '', numero: set.numero, nom: set.nom, theme: set.theme || '', nombre_pieces: set.nombre_pieces || 0, disponible: set.disponible });
     setEditingId(set.id);
     setShowModal(true);
   };
@@ -58,7 +64,7 @@ function LegoSetsPage() {
       try {
         await axios.delete(`${API_URL}/lego_sets/${id}`);
         setSuccess('Set LEGO supprimé');
-        fetchLegoSets();
+        fetchData();
       } catch (err) {
         setError('Erreur lors de la suppression');
       }
@@ -68,10 +74,12 @@ function LegoSetsPage() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Gestion des Sets LEGO</h1>
+        <h1 className="d-flex align-items-center gap-2 mb-0">
+          <Package size={26} aria-hidden="true" />Gestion des Sets LEGO
+        </h1>
         <Button variant="primary" onClick={() => {
           setEditingId(null);
-          setFormData({ numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
+          setFormData({ marque: '', numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
           setShowModal(true);
         }}>Ajouter un set</Button>
       </div>
@@ -82,18 +90,24 @@ function LegoSetsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>ID</th><th>Numéro</th><th>Nom</th><th>Thème</th><th>Pièces</th><th>Disponible</th><th>Actions</th>
+            <th>Marque</th><th>Numéro</th><th>Nom</th><th>Thème</th><th>Pièces</th><th>Disponible</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {legoSets.map(set => (
             <tr key={set.id}>
-              <td>{set.id}</td>
+              <td>{set.marque || '—'}</td>
               <td>{set.numero}</td>
               <td>{set.nom}</td>
               <td>{set.theme || 'N/A'}</td>
               <td>{set.nombre_pieces || 'N/A'}</td>
-              <td><Badge bg={set.disponible ? 'success' : 'danger'}>{set.disponible ? 'Oui' : 'Non'}</Badge></td>
+              <td>
+                {affectations.some((aff) => Number(aff.lego_set_id) === Number(set.id) && aff.statut !== 'complet') ? (
+                  <Badge bg="danger">En cours</Badge>
+                ) : (
+                  <Badge bg={set.disponible ? 'success' : 'secondary'}>{set.disponible ? 'Oui' : 'Non'}</Badge>
+                )}
+              </td>
               <td>
                 <Button variant="warning" size="sm" onClick={() => handleEdit(set)} className="me-2">Modifier</Button>
                 <Button variant="danger" size="sm" onClick={() => handleDelete(set.id)}>Supprimer</Button>
@@ -107,6 +121,10 @@ function LegoSetsPage() {
         <Modal.Header closeButton><Modal.Title>{editingId ? 'Modifier' : 'Ajouter'} un set LEGO</Modal.Title></Modal.Header>
         <Modal.Body>
           <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3">
+              <Form.Label>Marque</Form.Label>
+              <Form.Control type="text" name="marque" value={formData.marque} onChange={handleInputChange} placeholder="LEGO, Mould King, CaDa, Nefeliz…" />
+            </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Numéro</Form.Label>
               <Form.Control type="text" name="numero" value={formData.numero} onChange={handleInputChange} required />

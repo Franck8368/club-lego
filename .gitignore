@@ -3,6 +3,7 @@ backend/.env
 backend/db/
 backend/*.db
 backend/**/__pycache__/
+/demo/lego_club_demo.db
 
 # Frontend
 frontend/node_modules/
