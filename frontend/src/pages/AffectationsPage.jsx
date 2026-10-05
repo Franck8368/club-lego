@@ -28,24 +28,79 @@ function AffectationsPage() {
   useEffect(() => { fetchData(); }, []);
 
   const availableStudents = useMemo(() => eleves, [eleves]);
+  const openSessions = useMemo(() => sessions.filter(s => s.ouvert), [sessions]);
 
   const affectationsAffichees = useMemo(() => {
     if (!sessionAffichee) return affectations;
     return affectations.filter(aff => String(aff.session_id) === sessionAffichee);
   }, [affectations, sessionAffichee]);
 
+  // Fonction pour trouver le set LEGO en cours d'un élève (dans une session précédente)
+  const getEleveIncompleteSet = (eleveId, currentSessionId) => {
+    if (!eleveId || !currentSessionId) return null;
+    
+    // Créer un mapping des dates de session pour le tri
+    const sessionDates = {};
+    sessions.forEach(s => {
+      sessionDates[s.id] = s.date;
+    });
+    
+    // Trouver toutes les affectations non complètes de cet élève
+    const incompleteAffectations = affectations.filter(
+      aff => Number(aff.eleve_id) === Number(eleveId) && aff.statut !== 'complet'
+    );
+    
+    // Filtrer celles qui ne sont pas dans la session actuelle
+    const previousSessionAffectations = incompleteAffectations.filter(
+      aff => Number(aff.session_id) !== Number(currentSessionId)
+    );
+    
+    // Trouver la plus récente par date de session
+    if (previousSessionAffectations.length === 0) return null;
+    
+    previousSessionAffectations.sort((a, b) => {
+      const dateA = sessionDates[a.session_id] || '1970-01-01';
+      const dateB = sessionDates[b.session_id] || '1970-01-01';
+      return dateB.localeCompare(dateA); // Plus récente en premier
+    });
+    
+    return previousSessionAffectations[0];
+  };
+
+  // Fonction pour trouver le set que l'élève doit reprendre
+  const getEleveRequiredSet = (eleveId, sessionId) => {
+    if (!eleveId || !sessionId) return null;
+    return getEleveIncompleteSet(eleveId, sessionId);
+  };
+
   const availableLegoSets = useMemo(() => {
+    const eleveId = formData.eleve_id;
+    const sessionId = formData.session_id;
+    
+    // Si un élève et une session sont sélectionnés
+    if (eleveId && sessionId) {
+      const requiredSet = getEleveRequiredSet(eleveId, sessionId);
+      
+      // Si l'élève a un set en cours dans une session précédente
+      if (requiredSet) {
+        // Retourner UNIQUEMENT ce set
+        return legoSets.filter(set => Number(set.id) === Number(requiredSet.lego_set_id));
+      }
+    }
+    
+    // Sinon, retourner les sets disponibles pour la session actuelle
     return legoSets.filter((set) => {
       const isAssigned = affectations.some((aff) => {
         const sameSet = Number(aff.lego_set_id) === Number(set.id);
+        const sameSession = sessionId ? Number(aff.session_id) === Number(sessionId) : false;
         const sameEditingAffection = editingId !== null && Number(aff.id) === Number(editingId);
         const isActive = aff.statut !== 'complet';
-        return sameSet && isActive && !sameEditingAffection;
+        return sameSet && sameSession && isActive && !sameEditingAffection;
       });
 
       return set.disponible !== false && !isAssigned;
     });
-  }, [affectations, editingId, formData.session_id, legoSets]);
+  }, [affectations, editingId, formData.eleve_id, formData.session_id, legoSets, sessions]);
 
   const { setsEnCoursCount, setsDisponiblesCount } = useMemo(() => {
     const setsEnCours = new Set(
@@ -86,21 +141,21 @@ function AffectationsPage() {
     setFormData(prev => {
       const next = { ...prev, [name]: value };
 
-      if (name === 'session_id' || name === 'date_affectation') {
-        const selectedSetId = next.lego_set_id;
-
-        if (selectedSetId) {
-          const selectedSet = legoSets.find((set) => Number(set.id) === Number(selectedSetId));
-          const setStillAvailable = selectedSet?.disponible !== false && !affectations.some((aff) => (
-            Number(aff.lego_set_id) === Number(selectedSetId)
-            && aff.statut !== 'complet'
-            && !(editingId !== null && Number(aff.id) === Number(editingId))
-          ));
-
-          if (!setStillAvailable) {
-            next.lego_set_id = '';
-          }
+      // Quand on change la session et qu'un élève est déjà sélectionné
+      if (name === 'session_id' && next.eleve_id) {
+        const requiredSet = getEleveRequiredSet(next.eleve_id, value);
+        if (requiredSet) {
+          // Auto-sélectionner le set que l'élève doit reprendre
+          next.lego_set_id = requiredSet.lego_set_id;
+        } else {
+          // Sinon, réinitialiser le set
+          next.lego_set_id = '';
         }
+      }
+
+      // Quand on change l'élève (sans session), réinitialiser le set
+      if (name === 'eleve_id' && !next.session_id) {
+        next.lego_set_id = '';
       }
 
       return next;
@@ -262,7 +317,14 @@ function AffectationsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>élève</th><th>Set LEGO</th><th>Session</th><th>Date</th><th>Statut</th><th>Heure d'arrivée</th><th>Heure de départ</th><th>Actions</th>
+            <th>Élève</th>
+            <th>Set LEGO</th>
+            <th>Session</th>
+            <th>Date</th>
+            <th>Statut</th>
+            <th>Heure d'arrivée</th>
+            <th>Heure de départ</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -296,7 +358,7 @@ function AffectationsPage() {
         <Modal.Body>
           <Form onSubmit={handleSubmit}>
             <Form.Group as={Row} className="mb-3">
-              <Form.Label column sm={3}>élève</Form.Label>
+              <Form.Label column sm={3}>Élève</Form.Label>
               <Col sm={9}>
                 <Form.Select name="eleve_id" value={formData.eleve_id} onChange={handleInputChange} required>
                   <option value="">Sélectionnez un élève</option>
@@ -307,25 +369,36 @@ function AffectationsPage() {
               </Col>
             </Form.Group>
             <Form.Group as={Row} className="mb-3">
-              <Form.Label column sm={3}>Set LEGO</Form.Label>
+              <Form.Label column sm={3}>Session</Form.Label>
               <Col sm={9}>
-                <Form.Select name="lego_set_id" value={formData.lego_set_id} onChange={handleInputChange} required>
-                  <option value="">Sélectionnez un set</option>
-                  {availableLegoSets.map(set => (
-                    <option key={set.id} value={set.id}>{set.nom} ({set.numero})</option>
+                <Form.Select name="session_id" value={formData.session_id} onChange={handleInputChange} required>
+                  <option value="">Sélectionnez une session</option>
+                  {openSessions.map(session => (
+                    <option key={session.id} value={session.id}>{getSessionInfo(session.id)}</option>
                   ))}
                 </Form.Select>
               </Col>
             </Form.Group>
             <Form.Group as={Row} className="mb-3">
-              <Form.Label column sm={3}>Session</Form.Label>
+              <Form.Label column sm={3}>Set LEGO</Form.Label>
               <Col sm={9}>
-                <Form.Select name="session_id" value={formData.session_id} onChange={handleInputChange} required>
-                  <option value="">Sélectionnez une session</option>
-                  {sessions.map(session => (
-                    <option key={session.id} value={session.id}>{new Date(session.date).toLocaleDateString()} - {session.creneau}</option>
+                <Form.Select name="lego_set_id" value={formData.lego_set_id} onChange={handleInputChange} required 
+                  disabled={!!formData.eleve_id && !!formData.session_id && availableLegoSets.length === 1}>
+                  <option value="">Sélectionnez un set</option>
+                  {availableLegoSets.map(set => (
+                    <option key={set.id} value={set.id}>{set.nom} ({set.numero})</option>
                   ))}
                 </Form.Select>
+                {formData.eleve_id && formData.session_id && availableLegoSets.length === 1 && (
+                  <Form.Text className="text-muted">
+                    Cet élève doit reprendre son set en cours.
+                  </Form.Text>
+                )}
+                {formData.eleve_id && formData.session_id && availableLegoSets.length === 0 && (
+                  <Form.Text className="text-warning">
+                    Aucun set disponible pour cette session.
+                  </Form.Text>
+                )}
               </Col>
             </Form.Group>
             <Form.Group as={Row} className="mb-3">

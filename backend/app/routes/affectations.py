@@ -26,7 +26,7 @@ def create_affectation(affectation: AffectationCreate, db: Session = Depends(get
 def read_affectations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return crud_get_affectations(db, skip, limit)
 
-@router.get("/{session_id}", response_model=List[AffectationResponse])
+@router.get("/session/{session_id}", response_model=List[AffectationResponse])
 def read_affectations_by_session(session_id: int, db: Session = Depends(get_db)):
     return crud_get_affectations_by_session(db, session_id)
 
