@@ -49,7 +49,6 @@ def ensure_affectation_columns():
                 connection.execute(text(f"DROP INDEX IF EXISTS {index_name}"))
 
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_eleve_set_session ON affectations (eleve_id, lego_set_id, session_id)"))
-        connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_set_session_active ON affectations (lego_set_id, session_id) WHERE statut != 'complet'"))
 
 
 def get_db():
