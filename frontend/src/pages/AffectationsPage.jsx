@@ -39,6 +39,16 @@ function AffectationsPage() {
   const getEleveIncompleteSet = (eleveId, currentSessionId) => {
     if (!eleveId || !currentSessionId) return null;
     
+    // Vérifier si l'élève a complété un set dans la session actuelle
+    const completedInCurrentSession = affectations.some(
+      aff => Number(aff.eleve_id) === Number(eleveId) &&
+            Number(aff.session_id) === Number(currentSessionId) &&
+            aff.statut === 'complet'
+    );
+    
+    // Si l'élève a complété un set dans cette session, il peut choisir un nouveau set
+    if (completedInCurrentSession) return null;
+    
     // Créer un mapping des dates de session pour le tri
     const sessionDates = {};
     sessions.forEach(s => {
