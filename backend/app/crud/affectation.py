@@ -65,8 +65,20 @@ def validate_lego_set_availability(
 def validate_eleve_set_continuity(db: Session, eleve_id: int, lego_set_id: int, session_id: int) -> bool:
     """
     Valide que l'élève reprend son set LEGO en cours de la session précédente.
-    Si l'élève a un set en cours dans une session précédente, il doit reprendre ce même set.
+    Si l'élève a un set en cours dans une session précédente, il doit reprendre ce même set,
+    sauf s'il a déjà complété un set dans la session actuelle.
     """
+    # Vérifier si l'élève a déjà complété un set dans la session actuelle
+    completed_in_session = db.query(AffectationModel).filter(
+        AffectationModel.eleve_id == eleve_id,
+        AffectationModel.session_id == session_id,
+        AffectationModel.statut == 'complet'
+    ).first()
+    
+    if completed_in_session is not None:
+        # L'élève a déjà complété un set dans cette session, il peut choisir un nouveau set
+        return True
+    
     # Vérifier si l'élève a une affectation en cours dans une session précédente
     incomplete_affectation = get_eleve_incomplete_affectation(db, eleve_id, session_id)
     
