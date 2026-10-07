@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Table, Button, Form, Modal, Alert } from 'react-bootstrap';
 import axios from 'axios';
-import { Users } from 'lucide-react';
+import { Users, History } from 'lucide-react';
 import { getNiveauLabel } from '../utils/eleves';
 
 const API_URL = '/api';
 
 function ElevesPage() {
+  const navigate = useNavigate();
   const [eleves, setEleves] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ nom: '', prenom: '', classe: '', sexe: 'M' });
@@ -178,6 +180,7 @@ function ElevesPage() {
               <td>{eleve.sexe}</td>
               <td>{new Date(eleve.date_inscription).toLocaleDateString()}</td>
               <td>
+                <Button variant="info" size="sm" onClick={() => navigate(`/eleves/${eleve.id}/historique`)} className="me-2">Historique</Button>
                 <Button variant="warning" size="sm" onClick={() => handleEdit(eleve)} className="me-2">Modifier</Button>
                 <Button variant="danger" size="sm" onClick={() => handleDelete(eleve.id)}>Supprimer</Button>
               </td>

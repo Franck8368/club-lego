@@ -6,6 +6,7 @@ import ElevesPage from './pages/ElevesPage';
 import LegoSetsPage from './pages/LegoSetsPage';
 import SessionsPage from './pages/SessionsPage';
 import AffectationsPage from './pages/AffectationsPage';
+import EleveHistoriquePage from './pages/EleveHistoriquePage';
 import DashboardPage from './pages/DashboardPage';
 
 function App() {
@@ -48,6 +49,7 @@ function App() {
             <Route path="/lego-sets" element={<LegoSetsPage />} />
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/affectations" element={<AffectationsPage />} />
+            <Route path="/eleves/:eleveId/historique" element={<EleveHistoriquePage />} />
           </Routes>
         </Container>
       </div>
