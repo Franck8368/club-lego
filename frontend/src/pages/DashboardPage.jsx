@@ -195,6 +195,7 @@ function DashboardPage() {
               <th>Date</th>
               <th>Créneau</th>
               <th>État</th>
+              <th>Nbre Elèves</th>
               {classes.map((classe) => <th key={classe}>{classe}</th>)}
               <th>Sets complets</th>
               <th>Moyenne de pièces / set complet</th>
@@ -203,7 +204,7 @@ function DashboardPage() {
           <tbody>
             {statistiquesSessions.length === 0 ? (
               <tr>
-                <td colSpan={classes.length + 5} className="text-center text-muted py-4">Aucune session enregistrée.</td>
+                <td colSpan={classes.length + 6} className="text-center text-muted py-4">Aucune session enregistrée.</td>
               </tr>
             ) : statistiquesSessions.map(({ session, elevesParClasse, setsCompletsCount, moyennePieces }) => {
               return (
@@ -215,6 +216,7 @@ function DashboardPage() {
                       {session.ouvert ? 'Ouverte' : 'Fermée'}
                     </Badge>
                   </td>
+                  <td>{Object.values(elevesParClasse).reduce((sum, set) => sum + set.size, 0)}</td>
                   {classes.map((classe) => (
                     <td key={classe}>{elevesParClasse[classe].size}</td>
                   ))}
