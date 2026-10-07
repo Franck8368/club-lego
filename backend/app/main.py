@@ -16,6 +16,7 @@ from app.routes.eleves import router as eleves_router
 from app.routes.lego_sets import router as lego_sets_router
 from app.routes.sessions import router as sessions_router
 from app.routes.affectations import router as affectations_router
+from app.routes.historique_eleve import router as historique_eleve_router
 
 def resolve_repo_root() -> Path:
     candidates = [
@@ -56,6 +57,7 @@ app.include_router(eleves_router, prefix="/api", tags=["eleves"])
 app.include_router(lego_sets_router, prefix="/api", tags=["lego_sets"])
 app.include_router(sessions_router, prefix="/api", tags=["sessions"])
 app.include_router(affectations_router, prefix="/api", tags=["affectations"])
+app.include_router(historique_eleve_router, prefix="/api", tags=["historique_eleve"])
 
 # 7. Fichiers statiques
 if STATIC_DIR.exists():
