@@ -1,12 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Navbar, Container, Nav } from 'react-bootstrap';
-import { CalendarDays, ClipboardList, LayoutDashboard, Package, Users } from 'lucide-react';
+import { CalendarDays, ClipboardList, LayoutDashboard, Package, Users, History } from 'lucide-react';
 import ElevesPage from './pages/ElevesPage';
 import LegoSetsPage from './pages/LegoSetsPage';
 import SessionsPage from './pages/SessionsPage';
 import AffectationsPage from './pages/AffectationsPage';
 import EleveHistoriquePage from './pages/EleveHistoriquePage';
+import LegoSetHistoriquePage from './pages/LegoSetHistoriquePage';
 import DashboardPage from './pages/DashboardPage';
 
 function App() {
@@ -50,6 +51,7 @@ function App() {
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/affectations" element={<AffectationsPage />} />
             <Route path="/eleves/:eleveId/historique" element={<EleveHistoriquePage />} />
+            <Route path="/lego-sets/:legoSetId/historique" element={<LegoSetHistoriquePage />} />
           </Routes>
         </Container>
       </div>

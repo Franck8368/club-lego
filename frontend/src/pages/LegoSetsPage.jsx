@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Form, Modal, Alert, Badge } from 'react-bootstrap';
 import axios from 'axios';
-import { Package } from 'lucide-react';
+import { Package, History } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const API_URL = '/api';
 
 function LegoSetsPage() {
+  const navigate = useNavigate();
   const [legoSets, setLegoSets] = useState([]);
   const [affectations, setAffectations] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ marque: '', numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
   const [editingId, setEditingId] = useState(null);
@@ -18,12 +21,14 @@ function LegoSetsPage() {
 
   const fetchData = async () => {
     try {
-      const [setsRes, affectationsRes] = await Promise.all([
+      const [setsRes, affectationsRes, sessionsRes] = await Promise.all([
         axios.get(`${API_URL}/lego_sets`),
-        axios.get(`${API_URL}/affectations`)
+        axios.get(`${API_URL}/affectations`),
+        axios.get(`${API_URL}/sessions`)
       ]);
       setLegoSets(setsRes.data);
       setAffectations(affectationsRes.data);
+      setSessions(sessionsRes.data);
     } catch (err) {
       setError('Erreur lors de la récupération des sets LEGO');
     }
@@ -77,11 +82,16 @@ function LegoSetsPage() {
         <h1 className="d-flex align-items-center gap-2 mb-0">
           <Package size={26} aria-hidden="true" />Gestion des Sets LEGO
         </h1>
-        <Button variant="primary" onClick={() => {
-          setEditingId(null);
-          setFormData({ marque: '', numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
-          setShowModal(true);
-        }}>Ajouter un set</Button>
+        <div className="d-flex gap-2">
+          <Button variant="primary" onClick={() => {
+            setEditingId(null);
+            setFormData({ marque: '', numero: '', nom: '', theme: '', nombre_pieces: 0, disponible: true });
+            setShowModal(true);
+          }}>Ajouter un set</Button>
+          <Button variant="outline-secondary" onClick={fetchData} title="Rafraîchir les données">
+            🔄 Rafraîchir
+          </Button>
+        </div>
       </div>
 
       {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
@@ -90,7 +100,7 @@ function LegoSetsPage() {
       <Table striped bordered hover responsive>
         <thead>
           <tr>
-            <th>Marque</th><th>Numéro</th><th>Nom</th><th>Thème</th><th>Pièces</th><th>Disponible</th><th>Actions</th>
+            <th>Marque</th><th>Numéro</th><th>Nom</th><th>Thème</th><th>Pièces</th><th>Disponible</th><th>Historique</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -102,11 +112,26 @@ function LegoSetsPage() {
               <td>{set.theme || 'N/A'}</td>
               <td>{set.nombre_pieces || 'N/A'}</td>
               <td>
-                {affectations.some((aff) => Number(aff.lego_set_id) === Number(set.id) && aff.statut !== 'complet') ? (
+                {affectations.some((aff) => {
+                  const setIdMatch = Number(aff.lego_set_id) === Number(set.id);
+                  const statutNotComplete = aff.statut !== 'complet';
+                  const sessionIsOpen = sessions.some(s => Number(s.id) === Number(aff.session_id) && s.ouvert);
+                  return setIdMatch && statutNotComplete && sessionIsOpen;
+                }) ? (
                   <Badge bg="danger">En cours</Badge>
                 ) : (
                   <Badge bg={set.disponible ? 'success' : 'secondary'}>{set.disponible ? 'Oui' : 'Non'}</Badge>
                 )}
+              </td>
+              <td>
+                <Button 
+                  variant="info" 
+                  size="sm" 
+                  onClick={() => navigate(`/lego-sets/${set.id}/historique`)}
+                  title="Voir l'historique des réalisations"
+                >
+                  <History size={14} />
+                </Button>
               </td>
               <td>
                 <Button variant="warning" size="sm" onClick={() => handleEdit(set)} className="me-2">Modifier</Button>
