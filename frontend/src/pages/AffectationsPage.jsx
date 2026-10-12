@@ -55,26 +55,27 @@ function AffectationsPage() {
       sessionDates[s.id] = s.date;
     });
     
-    // Trouver toutes les affectations non complètes de cet élève
-    const incompleteAffectations = affectations.filter(
-      aff => Number(aff.eleve_id) === Number(eleveId) && aff.statut !== 'complet'
+    // Trouver TOUTES les affectations de l'élève dans les sessions PRÉCÉDENTES
+    const previousSessionAffectations = affectations.filter(
+      aff => Number(aff.eleve_id) === Number(eleveId) &&
+            Number(aff.session_id) !== Number(currentSessionId)
     );
     
-    // Filtrer celles qui ne sont pas dans la session actuelle
-    const previousSessionAffectations = incompleteAffectations.filter(
-      aff => Number(aff.session_id) !== Number(currentSessionId)
-    );
+    // Séparer explicitement en complètes et incomplètes
+    const incompleteAffectations = previousSessionAffectations.filter(aff => aff.statut !== 'complet');
     
-    // Trouver la plus récente par date de session
-    if (previousSessionAffectations.length === 0) return null;
+    // Si l'élève a des sets EN COURS dans les sessions précédentes, il doit reprendre le plus récent
+    if (incompleteAffectations.length > 0) {
+      incompleteAffectations.sort((a, b) => {
+        const dateA = sessionDates[a.session_id] || '1970-01-01';
+        const dateB = sessionDates[b.session_id] || '1970-01-01';
+        return dateB.localeCompare(dateA); // Plus récente en premier
+      });
+      return incompleteAffectations[0];
+    }
     
-    previousSessionAffectations.sort((a, b) => {
-      const dateA = sessionDates[a.session_id] || '1970-01-01';
-      const dateB = sessionDates[b.session_id] || '1970-01-01';
-      return dateB.localeCompare(dateA); // Plus récente en premier
-    });
-    
-    return previousSessionAffectations[0];
+    // Si l'élève n'a QUE des sets COMPLÉTÉS dans les sessions précédentes, il peut choisir un nouveau set
+    return null;
   };
 
   // Fonction pour trouver le set que l'élève doit reprendre
@@ -401,7 +402,9 @@ function AffectationsPage() {
                 </Form.Select>
                 {formData.eleve_id && formData.session_id && availableLegoSets.length === 1 && (
                   <Form.Text className="text-muted">
-                    Cet élève doit reprendre son set en cours.
+                    {getEleveRequiredSet(formData.eleve_id, formData.session_id)?.statut !== 'complet' ?
+                      'Cet élève doit reprendre son set en cours de la session précédente.' :
+                      'Un seul set est disponible pour cette session.'}
                   </Form.Text>
                 )}
                 {formData.eleve_id && formData.session_id && availableLegoSets.length === 0 && (
