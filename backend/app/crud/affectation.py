@@ -21,18 +21,32 @@ def get_previous_session(db: Session, current_session_id: int) -> SessionModel |
 
 
 def get_eleve_incomplete_affectation(db: Session, eleve_id: int, exclude_session_id: int | None = None) -> AffectationModel | None:
-    """Trouve l'affectation en cours (non complète) de l'élève dans n'importe quelle session sauf celle exclue."""
+    """Trouve l'affectation en cours (non complète) de l'élève dans n'importe quelle session sauf celle exclue.
+
+    Les sets que l'élève a déjà complétés sont ignorés : un set terminé n'est plus
+    un set à reprendre, même s'il reste un ancien enregistrement non complet.
+    """
+    completed_set_ids = [
+        lego_set_id
+        for (lego_set_id,) in db.query(AffectationModel.lego_set_id).filter(
+            AffectationModel.eleve_id == eleve_id,
+            AffectationModel.statut == 'complet',
+        ).distinct().all()
+    ]
+
     query = db.query(AffectationModel).filter(
         AffectationModel.eleve_id == eleve_id,
-        AffectationModel.statut != 'complet'
+        AffectationModel.statut != 'complet',
     )
-    
+    if completed_set_ids:
+        query = query.filter(~AffectationModel.lego_set_id.in_(completed_set_ids))
+
     if exclude_session_id:
         query = query.filter(AffectationModel.session_id != exclude_session_id)
-    
+
     # Prendre la plus récente par date de session
     incomplete_affectation = query.join(SessionModel).order_by(SessionModel.date.desc()).first()
-    
+
     return incomplete_affectation
 
 
@@ -62,12 +76,26 @@ def validate_lego_set_availability(
     return True
 
 
-def validate_eleve_set_continuity(db: Session, eleve_id: int, lego_set_id: int, session_id: int) -> bool:
+def validate_eleve_set_continuity(db: Session, eleve_id: int, lego_set_id: int, session_id: int, exclude_affectation_id: int | None = None) -> bool:
     """
     Valide que l'élève reprend son set LEGO en cours de la session précédente.
     Si l'élève a un set en cours dans une session précédente, il doit reprendre ce même set,
     sauf s'il a déjà complété un set dans la session actuelle.
+    Un set que l'élève a déjà complété (dans une autre session) ne peut plus lui être affecté.
     """
+    # Un set déjà terminé par l'élève (dans une autre session) ne peut plus lui être affecté
+    completed_set_query = db.query(AffectationModel).filter(
+        AffectationModel.eleve_id == eleve_id,
+        AffectationModel.lego_set_id == lego_set_id,
+        AffectationModel.statut == 'complet',
+        AffectationModel.session_id != session_id,
+    )
+    if exclude_affectation_id is not None:
+        completed_set_query = completed_set_query.filter(AffectationModel.id != exclude_affectation_id)
+
+    if completed_set_query.first() is not None:
+        raise ValueError('Cet élève a déjà terminé ce set LEGO. Ce set ne peut plus lui être affecté.')
+
     # Vérifier si l'élève a déjà complété un set dans la session actuelle
     completed_in_session = db.query(AffectationModel).filter(
         AffectationModel.eleve_id == eleve_id,
@@ -176,7 +204,7 @@ def update_affectation(db: Session, affectation_id: int, affectation_data: dict)
         new_session_id = affectation_data.get('session_id', db_affectation.session_id)
         
         if new_eleve_id != db_affectation.eleve_id or new_lego_set_id != db_affectation.lego_set_id or new_session_id != db_affectation.session_id:
-            validate_eleve_set_continuity(db, new_eleve_id, new_lego_set_id, new_session_id)
+            validate_eleve_set_continuity(db, new_eleve_id, new_lego_set_id, new_session_id, exclude_affectation_id=affectation_id)
         
         validate_lego_set_availability(
             db,

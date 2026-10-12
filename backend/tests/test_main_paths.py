@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from starlette.routing import Mount
 
-from app.crud.affectation import create_affectation, update_affectation, validate_lego_set_availability
+from app.crud.affectation import create_affectation, update_affectation, validate_eleve_set_continuity, validate_lego_set_availability
 from app.database import SessionLocal, ensure_lego_set_columns
 from app.main import app
 from app.models.affectation import Affectation
@@ -339,7 +339,7 @@ class MainPathResolutionTest(unittest.TestCase):
         finally:
             db.close()
 
-    def test_incomplete_assignment_blocks_set_reuse_in_another_session(self):
+    def test_incomplete_assignment_does_not_block_set_reuse_in_another_session(self):
         db = SessionLocal()
         try:
             db.query(Affectation).delete()
@@ -368,7 +368,9 @@ class MainPathResolutionTest(unittest.TestCase):
             ))
             db.commit()
 
-            with self.assertRaisesRegex(ValueError, 'indisponible'):
+            # Un set en cours dans une session précédente ne bloque pas
+            # la réutilisation du set dans une autre session
+            self.assertTrue(
                 validate_lego_set_availability(
                     db,
                     lego_set_id=lego_set.id,
@@ -376,6 +378,194 @@ class MainPathResolutionTest(unittest.TestCase):
                     date_affectation=next_session.date,
                     eleve_id=eleve.id,
                 )
+            )
+
+            # L'élève peut reprendre son set en cours à la session suivante
+            resumed = create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=eleve.id,
+                    lego_set_id=lego_set.id,
+                    session_id=next_session.id,
+                    date_affectation=next_session.date,
+                    statut='en_cours',
+                ),
+            )
+            self.assertEqual(resumed.eleve_id, eleve.id)
+            self.assertEqual(resumed.lego_set_id, lego_set.id)
+        finally:
+            db.close()
+
+    def test_completed_set_does_not_block_student_new_choice(self):
+        """Un set terminé par l'élève ne doit plus être bloquant : l'élève peut choisir un nouveau set."""
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            first_set = LegoSet(numero='SET-110', nom='Base spatiale', theme='Espace', nombre_pieces=174, disponible=True)
+            second_set = LegoSet(numero='SET-111', nom='Navette orbitale', theme='Espace', nombre_pieces=144, disponible=True)
+            old_session = Session(date=date(2026, 9, 19), creneau='Matin', ouvert=False)
+            previous_session = Session(date=date(2026, 9, 26), creneau='Matin', ouvert=False)
+            next_session = Session(date=date(2026, 10, 3), creneau='Matin', ouvert=True)
+            db.add_all([eleve, first_set, second_set, old_session, previous_session, next_session])
+            db.commit()
+            db.refresh(eleve)
+            db.refresh(first_set)
+            db.refresh(second_set)
+            db.refresh(old_session)
+            db.refresh(previous_session)
+            db.refresh(next_session)
+
+            # Ancien enregistrement non complet pour le même set...
+            db.add(Affectation(
+                eleve_id=eleve.id,
+                lego_set_id=first_set.id,
+                session_id=old_session.id,
+                date_affectation=old_session.date,
+                statut='en_cours',
+            ))
+            # ...puis le set est terminé à la session précédente
+            db.add(Affectation(
+                eleve_id=eleve.id,
+                lego_set_id=first_set.id,
+                session_id=previous_session.id,
+                date_affectation=previous_session.date,
+                statut='complet',
+            ))
+            db.commit()
+
+            # Le set terminé ne doit plus être un set à reprendre :
+            # l'élève peut choisir un nouveau set à la session suivante
+            self.assertTrue(
+                validate_eleve_set_continuity(
+                    db,
+                    eleve_id=eleve.id,
+                    lego_set_id=second_set.id,
+                    session_id=next_session.id,
+                )
+            )
+
+            created = create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=eleve.id,
+                    lego_set_id=second_set.id,
+                    session_id=next_session.id,
+                    date_affectation=next_session.date,
+                    statut='en_cours',
+                ),
+            )
+            self.assertEqual(created.eleve_id, eleve.id)
+            self.assertEqual(created.lego_set_id, second_set.id)
+        finally:
+            db.close()
+
+    def test_completed_set_cannot_be_reassigned_to_student(self):
+        """Un set déjà terminé par l'élève ne doit plus être disponible pour cet élève."""
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            lego_set = LegoSet(numero='SET-112', nom='Jardin botanique', theme='Nature', nombre_pieces=291, disponible=True)
+            first_session = Session(date=date(2026, 9, 26), creneau='Matin', ouvert=False)
+            next_session = Session(date=date(2026, 10, 3), creneau='Matin', ouvert=True)
+            db.add_all([eleve, lego_set, first_session, next_session])
+            db.commit()
+            db.refresh(eleve)
+            db.refresh(lego_set)
+            db.refresh(first_session)
+            db.refresh(next_session)
+
+            db.add(Affectation(
+                eleve_id=eleve.id,
+                lego_set_id=lego_set.id,
+                session_id=first_session.id,
+                date_affectation=first_session.date,
+                statut='complet',
+            ))
+            db.commit()
+
+            with self.assertRaisesRegex(ValueError, 'déjà terminé'):
+                validate_eleve_set_continuity(
+                    db,
+                    eleve_id=eleve.id,
+                    lego_set_id=lego_set.id,
+                    session_id=next_session.id,
+                )
+
+            with self.assertRaises(ValueError):
+                create_affectation(
+                    db,
+                    AffectationCreate(
+                        eleve_id=eleve.id,
+                        lego_set_id=lego_set.id,
+                        session_id=next_session.id,
+                        date_affectation=next_session.date,
+                        statut='en_cours',
+                    ),
+                )
+        finally:
+            db.close()
+
+    def test_incomplete_set_must_be_resumed(self):
+        """Un élève n'ayant pas fini son set à la session précédente doit le reprendre (un seul choix)."""
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            first_set = LegoSet(numero='SET-113', nom='Dino Explorer', theme='Dinosaures', nombre_pieces=305, disponible=True)
+            second_set = LegoSet(numero='SET-114', nom='Train miniature', theme='Transport', nombre_pieces=563, disponible=True)
+            first_session = Session(date=date(2026, 9, 26), creneau='Matin', ouvert=False)
+            next_session = Session(date=date(2026, 10, 3), creneau='Matin', ouvert=True)
+            db.add_all([eleve, first_set, second_set, first_session, next_session])
+            db.commit()
+            db.refresh(eleve)
+            db.refresh(first_set)
+            db.refresh(second_set)
+            db.refresh(first_session)
+            db.refresh(next_session)
+
+            db.add(Affectation(
+                eleve_id=eleve.id,
+                lego_set_id=first_set.id,
+                session_id=first_session.id,
+                date_affectation=first_session.date,
+                statut='non_fini',
+            ))
+            db.commit()
+
+            # L'élève doit reprendre son set non terminé
+            with self.assertRaisesRegex(ValueError, 'reprendre'):
+                validate_eleve_set_continuity(
+                    db,
+                    eleve_id=eleve.id,
+                    lego_set_id=second_set.id,
+                    session_id=next_session.id,
+                )
+
+            self.assertTrue(
+                validate_eleve_set_continuity(
+                    db,
+                    eleve_id=eleve.id,
+                    lego_set_id=first_set.id,
+                    session_id=next_session.id,
+                )
+            )
         finally:
             db.close()
 

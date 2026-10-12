@@ -55,14 +55,26 @@ function AffectationsPage() {
       sessionDates[s.id] = s.date;
     });
     
+    // Identifier les sets que l'élève a déjà complétés (dans n'importe quelle session) :
+    // un set terminé n'est plus un set à reprendre, même s'il reste un ancien
+    // enregistrement non complet pour ce même set
+    const completedSetIds = new Set(
+      affectations
+        .filter(aff => Number(aff.eleve_id) === Number(eleveId) && aff.statut === 'complet')
+        .map(aff => Number(aff.lego_set_id))
+    );
+
     // Trouver TOUTES les affectations de l'élève dans les sessions PRÉCÉDENTES
     const previousSessionAffectations = affectations.filter(
       aff => Number(aff.eleve_id) === Number(eleveId) &&
             Number(aff.session_id) !== Number(currentSessionId)
     );
-    
-    // Séparer explicitement en complètes et incomplètes
-    const incompleteAffectations = previousSessionAffectations.filter(aff => aff.statut !== 'complet');
+
+    // Séparer explicitement en complètes et incomplètes,
+    // en excluant les sets déjà complétés par l'élève
+    const incompleteAffectations = previousSessionAffectations.filter(
+      aff => aff.statut !== 'complet' && !completedSetIds.has(Number(aff.lego_set_id))
+    );
     
     // Si l'élève a des sets EN COURS dans les sessions précédentes, il doit reprendre le plus récent
     if (incompleteAffectations.length > 0) {
@@ -99,8 +111,21 @@ function AffectationsPage() {
       }
     }
     
-    // Sinon, retourner les sets disponibles pour la session actuelle
+    // Sinon, retourner les sets disponibles pour la session actuelle.
+    // Un set déjà complété par l'élève ne lui est plus proposé.
+    const completedSetIds = eleveId
+      ? new Set(
+          affectations
+            .filter(aff => Number(aff.eleve_id) === Number(eleveId) && aff.statut === 'complet')
+            .map(aff => Number(aff.lego_set_id))
+        )
+      : new Set();
+
     return legoSets.filter((set) => {
+      if (completedSetIds.has(Number(set.id))) {
+        return false;
+      }
+
       const isAssigned = affectations.some((aff) => {
         const sameSet = Number(aff.lego_set_id) === Number(set.id);
         const sameSession = sessionId ? Number(aff.session_id) === Number(sessionId) : false;
@@ -402,7 +427,7 @@ function AffectationsPage() {
                 </Form.Select>
                 {formData.eleve_id && formData.session_id && availableLegoSets.length === 1 && (
                   <Form.Text className="text-muted">
-                    {getEleveRequiredSet(formData.eleve_id, formData.session_id)?.statut !== 'complet' ?
+                    {getEleveRequiredSet(formData.eleve_id, formData.session_id) ?
                       'Cet élève doit reprendre son set en cours de la session précédente.' :
                       'Un seul set est disponible pour cette session.'}
                   </Form.Text>
