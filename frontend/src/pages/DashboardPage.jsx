@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Col, ProgressBar, Row, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, ProgressBar, Row, Table, Modal, Form } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { LayoutDashboard } from 'lucide-react';
@@ -15,6 +15,9 @@ function DashboardPage() {
   const [sessions, setSessions] = useState([]);
   const [affectations, setAffectations] = useState([]);
   const [error, setError] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -115,6 +118,9 @@ function DashboardPage() {
         </div>
         <Button as={Link} to="/affectations" variant="outline-primary">
           Ouvrir les affectations
+        </Button>
+        <Button variant="primary" className="ms-2" onClick={() => setShowReportModal(true)}>
+          Générer compte‑rendu
         </Button>
       </div>
 
@@ -231,6 +237,31 @@ function DashboardPage() {
           La moyenne porte sur le nombre de pièces des sets marqués complets pour chaque session.
         </p>
       </section>
+      <Modal show={showReportModal} onHide={() => setShowReportModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Générer un compte‑rendu</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3" controlId="startDate">
+              <Form.Label>Date de début</Form.Label>
+              <Form.Control type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} />
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="endDate">
+              <Form.Label>Date de fin</Form.Label>
+              <Form.Control type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowReportModal(false)}>Annuler</Button>
+          <Button variant="primary" onClick={() => {
+            const url = `${API_URL}/reports/pdf?start=${reportStartDate}&end=${reportEndDate}`;
+            window.open(url, '_blank');
+            setShowReportModal(false);
+          }} disabled={!reportStartDate || !reportEndDate}>Générer</Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
