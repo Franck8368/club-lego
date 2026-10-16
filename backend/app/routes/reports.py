@@ -1,5 +1,6 @@
 import datetime
 import re
+from collections import Counter
 from io import BytesIO
 from pathlib import Path
 from typing import List
@@ -232,6 +233,7 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
     # --- Lignes du tableau + récap par jour de semaine ------------------
     rows = []
     sessions_by_weekday = {i: [] for i in range(7)}
+    frequence_eleves = {}  # eleve_id -> nombre de séances suivies sur la période
     for s in sessions:
         affectations = (
             db.query(AffectationModel).filter(AffectationModel.session_id == s.id).all()
@@ -251,6 +253,10 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
             {aff.lego_set_id for aff in affectations if aff.statut == "complet"}
         )
         nbre_eleves = len(eleves_session)
+
+        # Fréquentation : +1 séance pour chaque élève présent
+        for eleve_id in eleves_session:
+            frequence_eleves[eleve_id] = frequence_eleves.get(eleve_id, 0) + 1
 
         rows.append(
             {
@@ -312,7 +318,7 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
                 mask="auto",
             )
 
-    def make_bar_chart(labels, values, color_hex, width, height, avg_value):
+    def make_bar_chart(labels, values, color_hex, width, height, avg_value=None):
         drawing = Drawing(width, height)
         chart = VerticalBarChart()
         chart.x = 30
@@ -331,26 +337,27 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
         chart.bars[0].fillColor = HexColor(color_hex)
 
         # Ligne de moyenne (annotation ReportLab appelée avec l'échelle de l'axe des valeurs)
-        def _average_annotation(chart, category_scale, value_scale):
-            y = value_scale(avg_value)
-            x0 = chart.x
-            x1 = chart.x + chart.width
-            line = Line(
-                x0, y, x1, y,
-                strokeColor=colors.black,
-                strokeWidth=1,
-                strokeDashArray=[3, 3],
-            )
-            label = String(
-                x1 - 70, y + 3,
-                f"moyenne: {avg_value:.1f}",
-                fontName="Helvetica-Bold",
-                fontSize=7,
-                fillColor=colors.black,
-            )
-            return Group(line, label)
+        if avg_value is not None:
+            def _average_annotation(chart, category_scale, value_scale):
+                y = value_scale(avg_value)
+                x0 = chart.x
+                x1 = chart.x + chart.width
+                line = Line(
+                    x0, y, x1, y,
+                    strokeColor=colors.black,
+                    strokeWidth=1,
+                    strokeDashArray=[3, 3],
+                )
+                label = String(
+                    x1 - 70, y + 3,
+                    f"moyenne: {avg_value:.1f}",
+                    fontName="Helvetica-Bold",
+                    fontSize=7,
+                    fillColor=colors.black,
+                )
+                return Group(line, label)
 
-        chart.annotations = [_average_annotation]
+            chart.annotations = [_average_annotation]
         drawing.add(chart)
         return drawing
 
@@ -560,6 +567,35 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
         elements.append(
             DrawingFlowable(
                 make_bar_chart(labels, values, weekday_color, doc.width, 200, moyenne),
+                doc.width,
+                200,
+            )
+        )
+        elements.append(Spacer(1, 0.2 * inch))
+
+    # --- Répartition des élèves par nombre de séances suivies ----------
+    # (nombre d'élèves en fonction du nombre de fois qu'ils sont venus)
+    if frequence_eleves:
+        freq_counts = Counter(frequence_eleves.values())
+        max_seances = max(freq_counts)
+        freq_labels = [str(k) for k in range(1, max_seances + 1)]
+        freq_values = [freq_counts.get(k, 0) for k in range(1, max_seances + 1)]
+
+        elements.append(Spacer(1, 12))
+        elements.append(
+            make_icon_text_table(
+                eleves_icon_png,
+                Paragraph(
+                    "Nombre d'élèves selon le nombre de séances suivies",
+                    chart_title_style,
+                ),
+                icon_size,
+            )
+        )
+        elements.append(Spacer(1, 6))
+        elements.append(
+            DrawingFlowable(
+                make_bar_chart(freq_labels, freq_values, "#17a2b8", doc.width, 200),
                 doc.width,
                 200,
             )
