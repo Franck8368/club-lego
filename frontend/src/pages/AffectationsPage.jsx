@@ -99,18 +99,35 @@ function AffectationsPage() {
   const availableLegoSets = useMemo(() => {
     const eleveId = formData.eleve_id;
     const sessionId = formData.session_id;
-    
+
+    // Set actuellement associé à l'affectation en cours d'édition : il doit
+    // toujours rester dans la liste, sinon la valeur du <select> n'existe plus
+    // et le formulaire devient impossible à valider (ex. affectation passée à
+    // "Complet" puis rouverte pour saisir l'heure de départ).
+    const editingSetId = editingId !== null
+      ? affectations.find(aff => Number(aff.id) === Number(editingId))?.lego_set_id
+      : null;
+
+    const withEditingSet = (sets) => {
+      if (editingSetId === null || editingSetId === undefined) return sets;
+      if (sets.some(set => Number(set.id) === Number(editingSetId))) return sets;
+      const editingSet = legoSets.find(set => Number(set.id) === Number(editingSetId));
+      return editingSet ? [...sets, editingSet] : sets;
+    };
+
     // Si un élève et une session sont sélectionnés
     if (eleveId && sessionId) {
       const requiredSet = getEleveRequiredSet(eleveId, sessionId);
-      
+
       // Si l'élève a un set en cours dans une session précédente
       if (requiredSet) {
         // Retourner UNIQUEMENT ce set
-        return legoSets.filter(set => Number(set.id) === Number(requiredSet.lego_set_id));
+        return withEditingSet(
+          legoSets.filter(set => Number(set.id) === Number(requiredSet.lego_set_id))
+        );
       }
     }
-    
+
     // Sinon, retourner les sets disponibles pour la session actuelle.
     // Un set déjà complété par l'élève ne lui est plus proposé.
     const completedSetIds = eleveId
@@ -121,7 +138,7 @@ function AffectationsPage() {
         )
       : new Set();
 
-    return legoSets.filter((set) => {
+    const filtered = legoSets.filter((set) => {
       if (completedSetIds.has(Number(set.id))) {
         return false;
       }
@@ -136,6 +153,8 @@ function AffectationsPage() {
 
       return set.disponible !== false && !isAssigned;
     });
+
+    return withEditingSet(filtered);
   }, [affectations, editingId, formData.eleve_id, formData.session_id, legoSets, sessions]);
 
   const { setsEnCoursCount, setsDisponiblesCount } = useMemo(() => {

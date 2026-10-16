@@ -404,6 +404,7 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
         "period", fontName="Helvetica", fontSize=12, alignment=TA_CENTER
     )
     subtitle_style = ParagraphStyle("subtitle", fontName="Helvetica", fontSize=12)
+    recap_style = ParagraphStyle("recap", fontName="Helvetica", fontSize=10)
     chart_title_style = ParagraphStyle(
         "chart_title", fontName="Helvetica-Bold", fontSize=12
     )
@@ -505,8 +506,21 @@ def generate_report(start: str, end: str, db: Session = Depends(get_db)):
     )
     elements.append(summary_table)
 
-    # Espacement de 1,5 entre la ligne « sets au total » et le tableau
+    # Espacement de 1,5 entre la ligne « sets au total » et le récap séances
     elements.append(Spacer(1, 1.5 * CM))
+
+    # --- Récap des séances : total + par jour de la semaine (réalisés) ---
+    seances_par_jour = [
+        (WEEKDAYS[i][0], len(sessions_by_weekday[i]))
+        for i in range(7)
+        if sessions_by_weekday[i]
+    ]
+    recap_seances = "&nbsp;&nbsp;&nbsp;&nbsp;".join(
+        [f"Séances au total : {len(sessions)}"]
+        + [f"{nom} : {nb}" for nom, nb in seances_par_jour]
+    )
+    elements.append(Paragraph(recap_seances, recap_style))
+    elements.append(Spacer(1, 0.3 * CM))
 
     # En-têtes du tableau
     header = ["Date", "Créneau", "Élèves"] + niveaux + ["Sets complets"]
