@@ -409,6 +409,9 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
 
     logo_size = 2.7 * CM  # logo agrandi x3
     icon_size = 0.45 * CM
+    # Décalage (« tabulation ») des lignes « par niveau » et « par sexe » :
+    # elles sont décalées vers la droite par rapport à « Élèves inscrits ».
+    repartition_indent = 1.5 * CM
 
     title_style = ParagraphStyle(
         "title",
@@ -430,12 +433,12 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     repartition_item_style = ParagraphStyle(
         "repartition_item", fontName="Helvetica", fontSize=11, alignment=TA_CENTER
     )
-    # Ligne « par sexe » : alignée sur « par niveau » (retrait de la colonne icône)
+    # Ligne « par sexe » : même retrait que « par niveau », non justifiée
     repartition_sexe_style = ParagraphStyle(
         "repartition_sexe",
         fontName="Helvetica",
         fontSize=11,
-        leftIndent=icon_size + 0.1 * CM,
+        leftIndent=repartition_indent,
     )
     chart_title_style = ParagraphStyle(
         "chart_title", fontName="Helvetica-Bold", fontSize=12
@@ -528,7 +531,7 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         if not items:
             return Paragraph("Par niveau : aucun", repartition_sexe_style)
 
-        indent = icon_size + 0.1 * CM
+        indent = repartition_indent
         label = "Par niveau :"
         label_width = stringWidth(
             label, repartition_style.fontName, repartition_style.fontSize
