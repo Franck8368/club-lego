@@ -136,7 +136,7 @@ function DashboardPage() {
     : JOURS_SEMAINE.map((jour) => jour.index);
   const joursAffiches = JOURS_SEMAINE.filter((jour) => joursSeances.includes(jour.index));
 
-  // Pré-remplit la période du compte-rendu avec l'année scolaire courante
+  // Pré-remplit la période du bilan d'activité avec l'année scolaire courante
   const openReportModal = () => {
     if (parametres) {
       setReportStartDate(parametres.date_debut || '');
@@ -202,7 +202,7 @@ function DashboardPage() {
             Ouvrir les affectations
           </Button>
           <Button variant="primary" onClick={openReportModal}>
-            Générer compte‑rendu
+            Générer le bilan d'activité
           </Button>
         </div>
       </div>
@@ -389,7 +389,7 @@ function DashboardPage() {
       </section>
       <Modal show={showReportModal} onHide={() => setShowReportModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Générer un compte‑rendu</Modal.Title>
+          <Modal.Title>Générer un bilan d'activité</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form>

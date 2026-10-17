@@ -190,7 +190,7 @@ def _make_icon_png(kind, size=64):
 
 @router.get("/pdf")
 def generate_report(start: str | None = None, end: str | None = None, db: Session = Depends(get_db)):
-    """Génère un compte-rendu PDF reprenant le tableau du tableau de bord.
+    """Génère le bilan d'activité PDF reprenant le tableau du tableau de bord.
 
     Par défaut, la période correspond aux dates de début et de fin de l'année
     scolaire définies dans les paramètres.
@@ -377,14 +377,34 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         drawing.add(chart)
         return drawing
 
-    def make_icon_text_table(icon_png, text_paragraph, icon_size, gap=0.1 * CM):
-        """Tableau [icône, texte] pour afficher une icône devant un libellé."""
-        cells = [text_paragraph]
-        col_widths = [None]
+    def make_icon_text_table(
+        icon_png,
+        text_paragraph,
+        icon_size,
+        gap=0.1 * CM,
+        background=None,
+        total_width=None,
+    ):
+        """Tableau [icône, texte] pour afficher une icône devant un libellé.
+
+        ``total_width`` force le tableau à occuper toute cette largeur (le
+        complément est ajouté après le texte) ; ``background`` applique un fond
+        coloré sur toute la ligne.
+        """
+        cells = []
+        col_widths = []
         if icon_png is not None:
-            cells.insert(0, LogoFlowable(icon_png, icon_size, icon_size))
-            col_widths.insert(0, icon_size + gap)
-        return Table([cells], colWidths=col_widths)
+            cells.append(LogoFlowable(icon_png, icon_size, icon_size))
+            col_widths.append(icon_size + gap)
+        cells.append(text_paragraph)
+        if total_width is not None:
+            col_widths.append(max(total_width - sum(col_widths), 0))
+        else:
+            col_widths.append(None)
+        table = Table([cells], colWidths=col_widths)
+        if background is not None:
+            table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), background)]))
+        return table
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -397,6 +417,9 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     )
 
     elements = []
+
+    # Fond bleu clair (faible) pour mettre en avant certaines lignes du rapport
+    fond_bleu_clair = colors.HexColor("#cfe2ff")
 
     # --- Ressources graphiques -----------------------------------------
     logo_png = _load_logo_png(LOGO_PATH, max_size=512)
@@ -509,18 +532,27 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     content_width = doc.width - 12
 
     summary_col_widths = [icon_size + 0.1 * CM, 2.9 * inch, 0.4 * inch, 2.9 * inch]
+    # Bandes latérales vides : le fond bleu couvre ainsi toute la largeur utile
+    # sans déplacer le contenu (qui reste centré comme avant).
+    summary_side = (content_width - sum(summary_col_widths)) / 2.0
+    summary_full_col_widths = [summary_side] + summary_col_widths + [summary_side]
 
     def _make_summary_table(rows):
-        """Tableau du récap : icône + libellé à gauche, complément à droite."""
-        table = Table(rows, colWidths=summary_col_widths)
+        """Tableau du récap : icône + libellé à gauche, complément à droite.
+
+        Un fond bleu clair (faible) met en avant la ligne.
+        """
+        padded = [[""] + list(row) + [""] for row in rows]
+        table = Table(padded, colWidths=summary_full_col_widths)
         table.setStyle(
             TableStyle(
                 [
+                    ("BACKGROUND", (0, 0), (-1, -1), fond_bleu_clair),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                    ("TOPPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ]
             )
         )
@@ -675,6 +707,8 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
                 affectation_icon_png,
                 Paragraph(f"Élèves par séance - {weekday_name}", chart_title_style),
                 icon_size,
+                background=fond_bleu_clair,
+                total_width=content_width,
             )
         )
         elements.append(Spacer(1, 6))
@@ -721,5 +755,5 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": "inline; filename=rapport.pdf"},
+        headers={"Content-Disposition": "inline; filename=bilan_activite.pdf"},
     )
