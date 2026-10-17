@@ -28,6 +28,10 @@ function ParametresPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const publishParametres = (data) => {
+    window.dispatchEvent(new CustomEvent('parametres:updated', { detail: data }));
+  };
+
   const applyParametres = (data) => {
     setParametres(data);
     setFormData({
@@ -35,6 +39,7 @@ function ParametresPage() {
       date_fin: data.date_fin || '',
       jours: parseJoursSeances(data.jours_seances)
     });
+    publishParametres(data);
   };
 
   useEffect(() => {
@@ -108,6 +113,7 @@ function ParametresPage() {
     try {
       const { data } = await axios.post(`${API_URL}/parametres/nouvelle-annee`);
       setParametres(data);
+      publishParametres(data);
       setSuccess(
         `Année scolaire ${data.annee_suivante} préparée. L’année en cours (${data.annee_scolaire}) reste active et ses données sont conservées.`
       );
@@ -125,6 +131,7 @@ function ParametresPage() {
     try {
       const { data } = await axios.delete(`${API_URL}/parametres/nouvelle-annee`);
       setParametres(data);
+      publishParametres(data);
       setSuccess('Préparation de l’année suivante annulée.');
     } catch (err) {
       setError(err?.response?.data?.detail || 'Erreur lors de l’annulation');
