@@ -16,6 +16,8 @@ class Affectation(Base):
     statut = Column(String(20), nullable=False, default="en_cours")
     heure_arrivee = Column(Time, nullable=True)
     heure_depart = Column(Time, nullable=True)
+    # Année scolaire à laquelle l'affectation est rattachée (ex. « 2026-2027 »)
+    annee_scolaire = Column(String(20), nullable=True, index=True)
 
     eleve = relationship("Eleve", backref="affectations")
     lego_set = relationship("LegoSet", backref="affectations")

@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover
     ImageDraw = None
 
 from app.database import get_db
+from app.crud.parametres import get_parametres
 from app.models.affectation import Affectation as AffectationModel
 from app.models.eleve import Eleve
 from app.models.lego_set import LegoSet
@@ -188,9 +189,17 @@ def _make_icon_png(kind, size=64):
 
 
 @router.get("/pdf")
-def generate_report(start: str, end: str, db: Session = Depends(get_db)):
-    """Génère un compte-rendu PDF reprenant le tableau du tableau de bord."""
+def generate_report(start: str | None = None, end: str | None = None, db: Session = Depends(get_db)):
+    """Génère un compte-rendu PDF reprenant le tableau du tableau de bord.
+
+    Par défaut, la période correspond aux dates de début et de fin de l'année
+    scolaire définies dans les paramètres.
+    """
     # --- Dates -------------------------------------------------------------
+    parametres = get_parametres(db)
+    start = start or parametres.date_debut.isoformat()
+    end = end or parametres.date_fin.isoformat()
+
     try:
         start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
         end_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()

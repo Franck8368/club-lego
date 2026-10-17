@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from app.crud.parametres import get_annee_scolaire
 from app.models.session import Session as SessionModel
 from app.schemas.session import SessionCreate
 
@@ -9,7 +10,10 @@ def get_sessions(db: Session, skip: int = 0, limit: int = 100):
     return db.query(SessionModel).offset(skip).limit(limit).all()
 
 def create_session(db: Session, session: SessionCreate):
-    db_session = SessionModel(**session.model_dump())
+    data = session.model_dump()
+    if not data.get("annee_scolaire"):
+        data["annee_scolaire"] = get_annee_scolaire(db)
+    db_session = SessionModel(**data)
     db.add(db_session)
     db.commit()
     db.refresh(db_session)
@@ -18,7 +22,11 @@ def create_session(db: Session, session: SessionCreate):
 def update_session(db: Session, session_id: int, session_data: dict):
     db_session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if db_session:
-        for key, value in session_data.items():
+        data = dict(session_data)
+        # Ne jamais écraser l'année scolaire existante si elle n'est pas fournie
+        if not data.get("annee_scolaire"):
+            data.pop("annee_scolaire", None)
+        for key, value in data.items():
             setattr(db_session, key, value)
         db.commit()
         db.refresh(db_session)

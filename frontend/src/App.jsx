@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Navbar, Container, Nav } from 'react-bootstrap';
-import { CalendarDays, ClipboardList, LayoutDashboard, Package, Users, History } from 'lucide-react';
+import { CalendarDays, ClipboardList, LayoutDashboard, Package, Users, History, Settings } from 'lucide-react';
 import ElevesPage from './pages/ElevesPage';
 import LegoSetsPage from './pages/LegoSetsPage';
 import SessionsPage from './pages/SessionsPage';
@@ -9,6 +9,7 @@ import AffectationsPage from './pages/AffectationsPage';
 import EleveHistoriquePage from './pages/EleveHistoriquePage';
 import LegoSetHistoriquePage from './pages/LegoSetHistoriquePage';
 import DashboardPage from './pages/DashboardPage';
+import ParametresPage from './pages/ParametresPage';
 
 function App() {
   return (
@@ -38,6 +39,9 @@ function App() {
                 <Nav.Link as={Link} to="/affectations" className="d-flex align-items-center gap-2">
                   <ClipboardList size={18} aria-hidden="true" />Affectations
                 </Nav.Link>
+                <Nav.Link as={Link} to="/parametres" className="d-flex align-items-center gap-2">
+                  <Settings size={18} aria-hidden="true" />Paramètres
+                </Nav.Link>
               </Nav>
             </Navbar.Collapse>
           </Container>
@@ -50,6 +54,7 @@ function App() {
             <Route path="/lego-sets" element={<LegoSetsPage />} />
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/affectations" element={<AffectationsPage />} />
+            <Route path="/parametres" element={<ParametresPage />} />
             <Route path="/eleves/:eleveId/historique" element={<EleveHistoriquePage />} />
             <Route path="/lego-sets/:legoSetId/historique" element={<LegoSetHistoriquePage />} />
           </Routes>

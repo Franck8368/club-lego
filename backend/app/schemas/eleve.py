@@ -7,6 +7,7 @@ class EleveBase(BaseModel):
     prenom: str
     classe: str
     sexe: str
+    annee_scolaire: Optional[str] = None
 
 class EleveCreate(EleveBase):
     date_inscription: date = date.today()

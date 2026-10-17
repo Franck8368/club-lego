@@ -3,6 +3,8 @@ import os
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
+from app.school_year import default_parametres_values
+
 # Chemin relatif simple
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lego_club.db")
 
@@ -49,6 +51,49 @@ def ensure_affectation_columns():
                 connection.execute(text(f"DROP INDEX IF EXISTS {index_name}"))
 
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_eleve_set_session ON affectations (eleve_id, lego_set_id, session_id)"))
+
+
+def ensure_annee_scolaire_columns(database_engine=engine):
+    """Ajoute la colonne « annee_scolaire » aux tables concernées.
+
+    Les enregistrements déjà présents sont rattachés à l'année scolaire
+    courante (celle des paramètres si elle existe, sinon la valeur par défaut).
+    """
+    inspector = inspect(database_engine)
+    tables = [
+        table
+        for table in ("eleves", "sessions", "affectations")
+        if inspector.has_table(table)
+    ]
+    if not tables:
+        return
+
+    for table in tables:
+        existing_columns = {column["name"] for column in inspector.get_columns(table)}
+        if "annee_scolaire" not in existing_columns:
+            with database_engine.begin() as connection:
+                connection.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN annee_scolaire VARCHAR(20)")
+                )
+
+    annee_scolaire = default_parametres_values()["annee_scolaire"]
+    if inspector.has_table("parametres"):
+        with database_engine.connect() as connection:
+            row = connection.execute(
+                text("SELECT annee_scolaire FROM parametres ORDER BY id LIMIT 1")
+            ).fetchone()
+            if row and row[0]:
+                annee_scolaire = row[0]
+
+    with database_engine.begin() as connection:
+        for table in tables:
+            connection.execute(
+                text(
+                    f"UPDATE {table} SET annee_scolaire = :annee "
+                    "WHERE annee_scolaire IS NULL OR annee_scolaire = ''"
+                ),
+                {"annee": annee_scolaire},
+            )
 
 
 def get_db():

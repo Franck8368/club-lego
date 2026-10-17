@@ -4,34 +4,18 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { LayoutDashboard } from 'lucide-react';
 import { getNiveauLabel } from '../utils/eleves';
+import { JOURS_SEMAINE, getJourSemaineValue, parseJoursSeances } from '../utils/jours';
 
 const API_URL = '/api';
 
 const getClasseSortValue = (classe) => Number((classe.match(/\d+/) || ['0'])[0]);
-
-// Jours de la semaine (index 0 = lundi), avec une couleur propre à chaque jour
-const JOURS_SEMAINE = [
-  { label: 'Lundi', couleur: '#1f77b4' },
-  { label: 'Mardi', couleur: '#ff7f0e' },
-  { label: 'Mercredi', couleur: '#2ca02c' },
-  { label: 'Jeudi', couleur: '#d62728' },
-  { label: 'Vendredi', couleur: '#9467bd' },
-  { label: 'Samedi', couleur: '#8c564b' },
-  { label: 'Dimanche', couleur: '#e377c2' }
-];
-
-const getJourSemaineValue = (dateValue) => {
-  if (!dateValue) return null;
-  const parsedDate = new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(parsedDate.getTime())) return null;
-  return (parsedDate.getDay() + 6) % 7; // 0 = lundi, 6 = dimanche
-};
 
 function DashboardPage() {
   const [eleves, setEleves] = useState([]);
   const [legoSets, setLegoSets] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [affectations, setAffectations] = useState([]);
+  const [parametres, setParametres] = useState(null);
   const [error, setError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportStartDate, setReportStartDate] = useState('');
@@ -40,17 +24,19 @@ function DashboardPage() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [elevesRes, legoSetsRes, sessionsRes, affectationsRes] = await Promise.all([
+        const [elevesRes, legoSetsRes, sessionsRes, affectationsRes, parametresRes] = await Promise.all([
           axios.get(`${API_URL}/eleves`),
           axios.get(`${API_URL}/lego_sets`),
           axios.get(`${API_URL}/sessions`),
-          axios.get(`${API_URL}/affectations`)
+          axios.get(`${API_URL}/affectations`),
+          axios.get(`${API_URL}/parametres`)
         ]);
 
         setEleves(elevesRes.data);
         setLegoSets(legoSetsRes.data);
         setSessions(sessionsRes.data);
         setAffectations(affectationsRes.data);
+        setParametres(parametresRes.data);
       } catch (err) {
         setError('Erreur lors de la récupération des statistiques');
       }
@@ -128,6 +114,21 @@ function DashboardPage() {
     (_, index) => sessions.filter((session) => getJourSemaineValue(session.date) === index).length
   );
 
+  // Uniquement les jours de séances définis dans les paramètres (tous par défaut)
+  const joursSeances = parametres
+    ? parseJoursSeances(parametres.jours_seances)
+    : JOURS_SEMAINE.map((jour) => jour.index);
+  const joursAffiches = JOURS_SEMAINE.filter((jour) => joursSeances.includes(jour.index));
+
+  // Pré-remplit la période du compte-rendu avec l'année scolaire courante
+  const openReportModal = () => {
+    if (parametres) {
+      setReportStartDate(parametres.date_debut || '');
+      setReportEndDate(parametres.date_fin || '');
+    }
+    setShowReportModal(true);
+  };
+
   // Nombre d'élèves en fonction du nombre de séances suivies
   const elevesParIdentifiant = new Set(eleves.map((eleve) => Number(eleve.id)));
   const seancesSuiviesParEleve = new Map();
@@ -169,7 +170,7 @@ function DashboardPage() {
         <Button as={Link} to="/affectations" variant="outline-primary">
           Ouvrir les affectations
         </Button>
-        <Button variant="primary" className="ms-2" onClick={() => setShowReportModal(true)}>
+        <Button variant="primary" className="ms-2" onClick={openReportModal}>
           Générer compte‑rendu
         </Button>
       </div>
@@ -248,20 +249,20 @@ function DashboardPage() {
           </span>
         </div>
         <ProgressBar aria-label="Répartition des séances par jour de la semaine" className="mb-3" style={{ height: '12px' }}>
-          {JOURS_SEMAINE.map((jour, index) => (
+          {joursAffiches.map((jour) => (
             <ProgressBar
               key={jour.label}
-              now={seancesParJour[index]}
+              now={seancesParJour[jour.index]}
               max={sessions.length || 1}
               style={{ backgroundColor: jour.couleur }}
             />
           ))}
         </ProgressBar>
         <Row className="g-3">
-          {JOURS_SEMAINE.map((jour, index) => (
+          {joursAffiches.map((jour) => (
             <Col xs={6} sm={4} lg={3} key={jour.label}>
               <div className="small text-muted">{jour.label}</div>
-              <div className="fw-semibold" style={{ color: jour.couleur }}>{seancesParJour[index]}</div>
+              <div className="fw-semibold" style={{ color: jour.couleur }}>{seancesParJour[jour.index]}</div>
             </Col>
           ))}
         </Row>
