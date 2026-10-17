@@ -14,3 +14,6 @@ frontend/public/.cache/
 .DS_Store
 .venv/
 *.log
+
+# Documents de travail locaux
+docs/preparation nouvelle annee scolaire.docx

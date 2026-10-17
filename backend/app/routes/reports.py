@@ -231,6 +231,13 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         key=lambda n: (-_classe_sort_value(n), n),
     )
 
+    # Répartition des élèves par niveau (même tri que ci-dessus) et par sexe
+    comptage_niveaux = Counter(
+        _niveau_label(e.classe) for e in eleves_all if e.classe
+    )
+    nb_feminin = sum(1 for e in eleves_all if e.sexe == "F")
+    nb_masculin = sum(1 for e in eleves_all if e.sexe == "M")
+
     # Sessions de la période
     sessions: List[SessionModel] = (
         db.query(SessionModel)
@@ -402,6 +409,9 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
 
     logo_size = 2.7 * CM  # logo agrandi x3
     icon_size = 0.45 * CM
+    # Décalage (« tabulation ») des lignes « par niveau » et « par sexe » :
+    # elles sont décalées vers la droite par rapport à « Élèves inscrits ».
+    repartition_indent = 1.5 * CM
 
     title_style = ParagraphStyle(
         "title",
@@ -414,6 +424,22 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     )
     subtitle_style = ParagraphStyle("subtitle", fontName="Helvetica", fontSize=12)
     recap_style = ParagraphStyle("recap", fontName="Helvetica", fontSize=10)
+    # Répartition par niveau / par sexe : une taille de police en dessous de
+    # celles des libellés « Élèves inscrits » et « Sets au total ».
+    repartition_style = ParagraphStyle(
+        "repartition", fontName="Helvetica", fontSize=11
+    )
+    # Chaque niveau est centré dans sa colonne de façon à répartir la ligne
+    repartition_item_style = ParagraphStyle(
+        "repartition_item", fontName="Helvetica", fontSize=11, alignment=TA_CENTER
+    )
+    # Ligne « par sexe » : même retrait que « par niveau », non justifiée
+    repartition_sexe_style = ParagraphStyle(
+        "repartition_sexe",
+        fontName="Helvetica",
+        fontSize=11,
+        leftIndent=repartition_indent,
+    )
     chart_title_style = ParagraphStyle(
         "chart_title", fontName="Helvetica-Bold", fontSize=12
     )
@@ -472,48 +498,113 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     elements.append(Spacer(1, 0.5 * CM))
 
     # --- Récapitulatif (icônes devant les libellés) --------------
-    # Espacement de 0,5 entre les deux lignes
     def _icon_cell(icon_png):
         if icon_png is not None:
             return LogoFlowable(icon_png, icon_size, icon_size)
         return ""
 
-    summary_data = [
-        [
-            _icon_cell(eleves_icon_png),
-            Paragraph(f"Élèves inscrits : {total_eleves}", subtitle_style),
-            "",
-            Paragraph(f"Absents : {absents}", subtitle_style),
-        ],
-        [Spacer(1, 0.5 * CM), "", "", ""],
-        [
-            _icon_cell(sets_icon_png),
-            Paragraph(f"Sets au total : {total_sets}", subtitle_style),
-            "",
-            Paragraph(f"Moyenne pièces/set : {moyenne_pieces}", subtitle_style),
-        ],
-    ]
-    summary_table = Table(
-        summary_data,
-        colWidths=[
-            icon_size + 0.1 * CM,
-            2.9 * inch,
-            0.4 * inch,
-            2.9 * inch,
-        ],
-    )
-    summary_table.setStyle(
-        TableStyle(
+    # La Frame interne de SimpleDocTemplate réserve 6 pt de marge de chaque côté.
+    # On utilise cette largeur utile pour que les tableaux ne débordent pas et
+    # démarrent exactement au même x que les paragraphes (« par sexe »).
+    content_width = doc.width - 12
+
+    summary_col_widths = [icon_size + 0.1 * CM, 2.9 * inch, 0.4 * inch, 2.9 * inch]
+
+    def _make_summary_table(rows):
+        """Tableau du récap : icône + libellé à gauche, complément à droite."""
+        table = Table(rows, colWidths=summary_col_widths)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        return table
+
+    def _make_repartition_niveau(niveaux, comptage):
+        """Ligne « Par niveau : … » répartie sur toute la largeur disponible.
+
+        Le libellé reste à gauche, puis chaque niveau est réparti dans sa
+        propre colonne de largeur égale, de façon à occuper toute la ligne.
+        """
+        items = [f"{niveau} : {comptage.get(niveau, 0)}" for niveau in niveaux]
+        if not items:
+            return Paragraph("Par niveau : aucun", repartition_sexe_style)
+
+        indent = repartition_indent
+        label = "Par niveau :"
+        label_width = stringWidth(
+            label, repartition_style.fontName, repartition_style.fontSize
+        )
+        column_width = (content_width - indent - label_width) / len(items)
+        cells = (
+            [""]
+            + [Paragraph(label, repartition_style)]
+            + [Paragraph(item, repartition_item_style) for item in items]
+        )
+        table = Table(
+            [cells],
+            colWidths=[indent, label_width] + [column_width] * len(items),
+            hAlign="LEFT",
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        return table
+
+    # Écart marqué entre « Féminin » et « Masculin » (effet tabulation)
+    sexe_gap = "&nbsp;" * 10
+    recap_sexes = f"Féminin : {nb_feminin}{sexe_gap}Masculin : {nb_masculin}"
+
+    # Ligne « Élèves inscrits / Absents »
+    elements.append(
+        _make_summary_table(
             [
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                [
+                    _icon_cell(eleves_icon_png),
+                    Paragraph(f"Élèves inscrits : {total_eleves}", subtitle_style),
+                    "",
+                    Paragraph(f"Absents : {absents}", subtitle_style),
+                ]
             ]
         )
     )
-    elements.append(summary_table)
+
+    # Répartition par niveau : écart plus marqué puis répartie sur toute la ligne
+    elements.append(Spacer(1, 0.8 * CM))
+    elements.append(_make_repartition_niveau(niveaux, comptage_niveaux))
+
+    # Répartition par sexe : sur la ligne en dessous, non justifiée
+    elements.append(Spacer(1, 0.2 * CM))
+    elements.append(Paragraph(f"Par sexe : {recap_sexes}", repartition_sexe_style))
+
+    # Ligne « Sets au total / Moyenne pièces/set »
+    elements.append(Spacer(1, 0.5 * CM))
+    elements.append(
+        _make_summary_table(
+            [
+                [
+                    _icon_cell(sets_icon_png),
+                    Paragraph(f"Sets au total : {total_sets}", subtitle_style),
+                    "",
+                    Paragraph(f"Moyenne pièces/set : {moyenne_pieces}", subtitle_style),
+                ]
+            ]
+        )
+    )
 
     # Espacement de 1,5 entre la ligne « sets au total » et le récap séances
     elements.append(Spacer(1, 1.5 * CM))
@@ -525,7 +616,7 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         if sessions_by_weekday[i]
     ]
     recap_seances = "&nbsp;&nbsp;&nbsp;&nbsp;".join(
-        [f"Séances au total : {len(sessions)}"]
+        [f"<b>Séances au total : {len(sessions)}</b>"]
         + [f"{nom} : {nb}" for nom, nb in seances_par_jour]
     )
     elements.append(Paragraph(recap_seances, recap_style))
