@@ -231,6 +231,13 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         key=lambda n: (-_classe_sort_value(n), n),
     )
 
+    # Répartition des élèves par niveau (même tri que ci-dessus) et par sexe
+    comptage_niveaux = Counter(
+        _niveau_label(e.classe) for e in eleves_all if e.classe
+    )
+    nb_feminin = sum(1 for e in eleves_all if e.sexe == "F")
+    nb_masculin = sum(1 for e in eleves_all if e.sexe == "M")
+
     # Sessions de la période
     sessions: List[SessionModel] = (
         db.query(SessionModel)
@@ -414,6 +421,11 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     )
     subtitle_style = ParagraphStyle("subtitle", fontName="Helvetica", fontSize=12)
     recap_style = ParagraphStyle("recap", fontName="Helvetica", fontSize=10)
+    # Répartition par niveau / par sexe : une taille de police en dessous de
+    # celles des libellés « Élèves inscrits » et « Sets au total ».
+    repartition_style = ParagraphStyle(
+        "repartition", fontName="Helvetica", fontSize=11
+    )
     chart_title_style = ParagraphStyle(
         "chart_title", fontName="Helvetica-Bold", fontSize=12
     )
@@ -478,12 +490,24 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
             return LogoFlowable(icon_png, icon_size, icon_size)
         return ""
 
+    recap_niveaux = " · ".join(
+        f"{niveau} : {comptage_niveaux.get(niveau, 0)}" for niveau in niveaux
+    ) or "aucun"
+    recap_sexes = f"Féminin : {nb_feminin} · Masculin : {nb_masculin}"
+
     summary_data = [
         [
             _icon_cell(eleves_icon_png),
             Paragraph(f"Élèves inscrits : {total_eleves}", subtitle_style),
             "",
             Paragraph(f"Absents : {absents}", subtitle_style),
+        ],
+        # Répartition par niveau (à gauche) et par sexe (à droite)
+        [
+            "",
+            Paragraph(f"Par niveau : {recap_niveaux}", repartition_style),
+            "",
+            Paragraph(f"Par sexe : {recap_sexes}", repartition_style),
         ],
         [Spacer(1, 0.5 * CM), "", "", ""],
         [
