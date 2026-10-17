@@ -203,17 +203,29 @@ def update_affectation(db: Session, affectation_id: int, affectation_data: dict)
         new_lego_set_id = affectation_data.get('lego_set_id', db_affectation.lego_set_id)
         new_session_id = affectation_data.get('session_id', db_affectation.session_id)
         
-        if new_eleve_id != db_affectation.eleve_id or new_lego_set_id != db_affectation.lego_set_id or new_session_id != db_affectation.session_id:
-            validate_eleve_set_continuity(db, new_eleve_id, new_lego_set_id, new_session_id, exclude_affectation_id=affectation_id)
-        
-        validate_lego_set_availability(
-            db,
-            lego_set_id=affectation_data.get('lego_set_id', db_affectation.lego_set_id),
-            session_id=affectation_data.get('session_id', db_affectation.session_id),
-            date_affectation=affectation_data.get('date_affectation', db_affectation.date_affectation),
-            eleve_id=affectation_data.get('eleve_id', db_affectation.eleve_id),
-            exclude_affectation_id=affectation_id,
+        identity_changed = (
+            new_eleve_id != db_affectation.eleve_id
+            or new_lego_set_id != db_affectation.lego_set_id
+            or new_session_id != db_affectation.session_id
         )
+
+        # Les validations de continuité et de disponibilité ne concernent que le
+        # couple élève/set/session. Si l'affectation garde le même élève, le même
+        # set et la même session (ex. saisie de l'heure de départ, changement de
+        # statut), on ne doit pas revalider la disponibilité : le set a pu être
+        # redonné entre-temps à un autre élève de la même séance, ce qui ne doit
+        # pas empêcher la mise à jour de l'affectation existante.
+        if identity_changed:
+            validate_eleve_set_continuity(db, new_eleve_id, new_lego_set_id, new_session_id, exclude_affectation_id=affectation_id)
+
+            validate_lego_set_availability(
+                db,
+                lego_set_id=new_lego_set_id,
+                session_id=new_session_id,
+                date_affectation=affectation_data.get('date_affectation', db_affectation.date_affectation),
+                eleve_id=new_eleve_id,
+                exclude_affectation_id=affectation_id,
+            )
 
         if 'heure_arrivee' in affectation_data or 'heure_depart' in affectation_data:
             new_arrival = affectation_data.get('heure_arrivee', db_affectation.heure_arrivee)
