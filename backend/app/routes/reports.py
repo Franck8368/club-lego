@@ -445,12 +445,12 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     )
 
     # --- En-tête : titre (en haut, centré) + période, logo à côté ----
-    title_paragraph = Paragraph("Compte-rendu du Club LEGO", title_style)
+    title_paragraph = Paragraph("Bilan d'activité du Club LEGO", title_style)
     period_paragraph = Paragraph(f"Période du {start_fr} au {end_fr}", period_style)
     if logo_png is not None:
         # Largeurs naturelles pour centrer le titre sur la feuille
         title_w = stringWidth(
-            "Compte-rendu du Club LEGO", title_style.fontName, title_style.fontSize
+            "Bilan d'activité du Club LEGO", title_style.fontName, title_style.fontSize
         )
         period_w = stringWidth(
             f"Période du {start_fr} au {end_fr}",
