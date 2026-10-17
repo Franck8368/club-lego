@@ -48,7 +48,7 @@ Objectif principal : vérifier que la préparation / l'activation **ne supprime 
 
 - [ ] Section **« Séances par jour de la semaine »** : **seuls mardi/jeudi** apparaissent (les autres jours configurés comme non-séance sont masqués).
 - [ ] Filtre d'année : par défaut **« Toutes les années »** (rien n'est masqué).
-- [ ] Bouton **« Générer compte‑rendu »** → les dates sont **pré-remplies** avec l'année scolaire.
+- [ ] Bouton **« Générer le bilan d'activité »** → les dates sont **pré-remplies** avec l'année scolaire.
   - ⚠️ En local, la **génération du PDF peut échouer** (`reportlab` non installé dans le venv) — vérifier surtout le **pré-remplissage** (OK via Docker).
 
 ## 4. Préparer l'année suivante

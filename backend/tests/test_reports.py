@@ -27,8 +27,8 @@ async def _collecter(iterator):
 
 
 @unittest.skipUnless(REPORTLAB_DISPONIBLE, "reportlab non installé")
-class CompteRenduPdfTest(unittest.TestCase):
-    """Vérifie que le compte-rendu PDF se génère (récap niveaux / sexes inclus)."""
+class BilanActivitePdfTest(unittest.TestCase):
+    """Vérifie que le bilan d'activité PDF se génère (récap niveaux / sexes inclus)."""
 
     def setUp(self):
         self.engine = create_engine("sqlite://")
@@ -88,7 +88,7 @@ class CompteRenduPdfTest(unittest.TestCase):
             chunks = list(iterator)
         return b"".join(chunks)
 
-    def test_le_compte_rendu_se_genere(self):
+    def test_le_bilan_activite_se_genere(self):
         body = self._generer_pdf()
         self.assertTrue(body.startswith(b"%PDF"))
         self.assertGreater(len(body), 1000)
