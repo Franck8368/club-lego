@@ -442,6 +442,9 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     affectation_icon_png = _load_icon_png("calendar-days.png") or _make_icon_png(
         "affectation"
     )
+    seances_icon_png = _load_icon_png("calendar-check.png") or _make_icon_png(
+        "affectation"
+    )
 
     logo_size = 2.7 * CM  # logo agrandi x3
     icon_size = 0.45 * CM
@@ -459,7 +462,8 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         "period", fontName="Helvetica", fontSize=12, alignment=TA_CENTER
     )
     subtitle_style = ParagraphStyle("subtitle", fontName="Helvetica", fontSize=12)
-    recap_style = ParagraphStyle("recap", fontName="Helvetica", fontSize=10)
+    # Ligne « Séances au total » : même police que « Élèves inscrits »
+    recap_style = ParagraphStyle("recap", fontName="Helvetica", fontSize=12)
     # Répartition par niveau / par sexe : une taille de police en dessous de
     # celles des libellés « Élèves inscrits » et « Sets au total ».
     repartition_style = ParagraphStyle(
@@ -726,7 +730,15 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         [f"<b>Séances au total : {len(sessions)}</b>"]
         + [f"{nom} : {nb}" for nom, nb in seances_par_jour]
     )
-    elements.append(Paragraph(recap_seances, recap_style))
+    elements.append(
+        make_icon_text_table(
+            seances_icon_png,
+            Paragraph(recap_seances, recap_style),
+            icon_size,
+            background=fond_bleu_clair,
+            total_width=content_width,
+        )
+    )
     elements.append(Spacer(1, 0.3 * CM))
 
     # En-têtes du tableau
@@ -813,6 +825,8 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
                     chart_title_style,
                 ),
                 icon_size,
+                background=fond_bleu_clair,
+                total_width=content_width,
             )
         )
         elements.append(Spacer(1, 6))
