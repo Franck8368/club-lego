@@ -339,6 +339,73 @@ class MainPathResolutionTest(unittest.TestCase):
         finally:
             db.close()
 
+    def test_update_times_after_set_reassigned_to_another_student(self):
+        """Rééditer une affectation (ex. heure de départ) doit fonctionner même si
+        le set a été redonné entre-temps à un autre élève de la même séance."""
+        db = SessionLocal()
+        try:
+            db.query(Affectation).delete()
+            db.query(LegoSet).delete()
+            db.query(Eleve).delete()
+            db.query(Session).delete()
+            db.commit()
+
+            first_eleve = Eleve(nom='Martin', prenom='Alice', classe='CM2', sexe='F', date_inscription=date(2026, 9, 1))
+            second_eleve = Eleve(nom='Dupont', prenom='Paul', classe='CM1', sexe='M', date_inscription=date(2026, 9, 1))
+            lego_set = LegoSet(numero='SET-115', nom='Circuit', theme='Vitesse', nombre_pieces=250, disponible=True)
+            session = Session(date=date(2026, 9, 28), creneau='Matin', ouvert=True)
+
+            db.add_all([first_eleve, second_eleve, lego_set, session])
+            db.commit()
+            db.refresh(first_eleve)
+            db.refresh(second_eleve)
+            db.refresh(lego_set)
+            db.refresh(session)
+
+            # L'élève 1 termine le set au cours de la séance
+            completed = create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=first_eleve.id,
+                    lego_set_id=lego_set.id,
+                    session_id=session.id,
+                    date_affectation=session.date,
+                    statut='complet',
+                    heure_arrivee=time(9, 0),
+                ),
+            )
+            # Le set est redonné à un autre élève de la même séance
+            create_affectation(
+                db,
+                AffectationCreate(
+                    eleve_id=second_eleve.id,
+                    lego_set_id=lego_set.id,
+                    session_id=session.id,
+                    date_affectation=session.date,
+                    statut='en_cours',
+                ),
+            )
+
+            # Réédition de l'affectation de l'élève 1 pour saisir l'heure de départ
+            updated = update_affectation(
+                db,
+                completed.id,
+                {
+                    'eleve_id': first_eleve.id,
+                    'lego_set_id': lego_set.id,
+                    'session_id': session.id,
+                    'date_affectation': session.date,
+                    'statut': 'complet',
+                    'heure_arrivee': time(9, 0),
+                    'heure_depart': time(12, 0),
+                },
+            )
+
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated.heure_depart, time(12, 0))
+        finally:
+            db.close()
+
     def test_incomplete_assignment_does_not_block_set_reuse_in_another_session(self):
         db = SessionLocal()
         try:
