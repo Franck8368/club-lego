@@ -2,18 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Form, Modal, Alert, Badge } from 'react-bootstrap';
 import axios from 'axios';
 import { CalendarDays } from 'lucide-react';
+import { JOURS_SEMAINE, parseJoursSeances, prochaineDateDeSeance } from '../utils/jours';
 
 const API_URL = '/api';
 
+const todayString = () => {
+  const now = new Date();
+  const mois = String(now.getMonth() + 1).padStart(2, '0');
+  const jour = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${mois}-${jour}`;
+};
+
 function SessionsPage() {
   const [sessions, setSessions] = useState([]);
+  const [joursSeances, setJoursSeances] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], creneau: '', ouvert: true });
+  const [formData, setFormData] = useState({ date: todayString(), creneau: '', ouvert: true });
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { fetchSessions(); }, []);
+  useEffect(() => {
+    fetchSessions();
+    fetchParametres();
+  }, []);
 
   const fetchSessions = async () => {
     try {
@@ -23,6 +35,27 @@ function SessionsPage() {
       setError('Erreur lors de la récupération des sessions');
     }
   };
+
+  const fetchParametres = async () => {
+    try {
+      const { data } = await axios.get(`${API_URL}/parametres`);
+      const jours = parseJoursSeances(data.jours_seances);
+      setJoursSeances(jours);
+      // Pré-sélectionne le prochain jour de séance pour une nouvelle saisie
+      setFormData((prev) => ({ ...prev, date: prochaineDateDeSeance(jours) }));
+    } catch (err) {
+      setJoursSeances([]);
+    }
+  };
+
+  const defaultDate = () => (
+    joursSeances.length ? prochaineDateDeSeance(joursSeances) : todayString()
+  );
+
+  const joursSeancesLabels = joursSeances
+    .map((index) => JOURS_SEMAINE[index]?.label)
+    .filter(Boolean)
+    .join(', ');
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -41,7 +74,7 @@ function SessionsPage() {
       }
       fetchSessions();
       setShowModal(false);
-      setFormData({ date: new Date().toISOString().split('T')[0], creneau: '', ouvert: true });
+      setFormData({ date: defaultDate(), creneau: '', ouvert: true });
       setEditingId(null);
     } catch (err) {
       setError('Erreur lors de la sauvegarde');
@@ -87,7 +120,7 @@ function SessionsPage() {
         </h1>
         <Button variant="primary" onClick={() => {
           setEditingId(null);
-          setFormData({ date: new Date().toISOString().split('T')[0], creneau: '', ouvert: true });
+          setFormData({ date: defaultDate(), creneau: '', ouvert: true });
           setShowModal(true);
         }}>Ajouter une session</Button>
       </div>
@@ -138,6 +171,11 @@ function SessionsPage() {
             <Form.Group className="mb-3">
               <Form.Label>Date</Form.Label>
               <Form.Control type="date" name="date" value={formData.date} onChange={handleInputChange} required />
+              {joursSeancesLabels && (
+                <Form.Text className="text-muted">
+                  Jours de séances configurés : {joursSeancesLabels}.
+                </Form.Text>
+              )}
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Créneau (ex: 14h-16h)</Form.Label>

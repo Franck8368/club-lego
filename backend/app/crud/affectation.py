@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from sqlalchemy import exc as sqlalchemy_exc, or_, and_
 from sqlalchemy.orm import Session
+from app.crud.parametres import get_annee_scolaire
 from app.models.affectation import Affectation as AffectationModel
 from app.models.session import Session as SessionModel
 from app.schemas.affectation import AffectationCreate
@@ -184,6 +185,7 @@ def create_affectation(db: Session, affectation: AffectationCreate):
         statut=affectation.statut,
         heure_arrivee=effective_arrival,
         heure_depart=effective_departure,
+        annee_scolaire=affectation.annee_scolaire or get_annee_scolaire(db),
     )
     db.add(db_affectation)
     try:
@@ -249,6 +251,9 @@ def update_affectation(db: Session, affectation_id: int, affectation_data: dict)
                 }, synchronize_session=False)
 
         for key, value in affectation_data.items():
+            # Ne jamais écraser l'année scolaire existante si elle n'est pas fournie
+            if key == "annee_scolaire" and not value:
+                continue
             setattr(db_affectation, key, value)
         try:
             db.commit()

@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, Date
+
 from . import Base  # <-- Utilisez la Base commune
+
 
 class Eleve(Base):
     __tablename__ = "eleves"
@@ -9,3 +11,5 @@ class Eleve(Base):
     classe = Column(String(20), nullable=False)
     sexe = Column(String(10), nullable=False)
     date_inscription = Column(Date, nullable=False)
+    # Année scolaire à laquelle l'élève est rattaché (ex. « 2026-2027 »)
+    annee_scolaire = Column(String(20), nullable=True, index=True)

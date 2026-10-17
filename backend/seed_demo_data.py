@@ -67,6 +67,12 @@ def main():
             SessionModel(date=date(2026, 10, 3), creneau="09h00-11h00", ouvert=False),
         ]
 
+        annee_scolaire = "2026-2027"
+        for eleve in eleves:
+            eleve.annee_scolaire = annee_scolaire
+        for session in sessions:
+            session.annee_scolaire = annee_scolaire
+
         db.add_all(eleves + sets + sessions)
         db.flush()
 
@@ -84,6 +90,7 @@ def main():
                     session_id=session.id,
                     date_affectation=session.date,
                     statut=statut,
+                    annee_scolaire=annee_scolaire,
                 ))
 
         db.commit()

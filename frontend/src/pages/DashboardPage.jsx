@@ -4,34 +4,19 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { LayoutDashboard } from 'lucide-react';
 import { getNiveauLabel } from '../utils/eleves';
+import { JOURS_SEMAINE, getJourSemaineValue, parseJoursSeances } from '../utils/jours';
 
 const API_URL = '/api';
 
 const getClasseSortValue = (classe) => Number((classe.match(/\d+/) || ['0'])[0]);
-
-// Jours de la semaine (index 0 = lundi), avec une couleur propre à chaque jour
-const JOURS_SEMAINE = [
-  { label: 'Lundi', couleur: '#1f77b4' },
-  { label: 'Mardi', couleur: '#ff7f0e' },
-  { label: 'Mercredi', couleur: '#2ca02c' },
-  { label: 'Jeudi', couleur: '#d62728' },
-  { label: 'Vendredi', couleur: '#9467bd' },
-  { label: 'Samedi', couleur: '#8c564b' },
-  { label: 'Dimanche', couleur: '#e377c2' }
-];
-
-const getJourSemaineValue = (dateValue) => {
-  if (!dateValue) return null;
-  const parsedDate = new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(parsedDate.getTime())) return null;
-  return (parsedDate.getDay() + 6) % 7; // 0 = lundi, 6 = dimanche
-};
 
 function DashboardPage() {
   const [eleves, setEleves] = useState([]);
   const [legoSets, setLegoSets] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [affectations, setAffectations] = useState([]);
+  const [parametres, setParametres] = useState(null);
+  const [anneeFiltre, setAnneeFiltre] = useState('');
   const [error, setError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportStartDate, setReportStartDate] = useState('');
@@ -40,17 +25,19 @@ function DashboardPage() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [elevesRes, legoSetsRes, sessionsRes, affectationsRes] = await Promise.all([
+        const [elevesRes, legoSetsRes, sessionsRes, affectationsRes, parametresRes] = await Promise.all([
           axios.get(`${API_URL}/eleves`),
           axios.get(`${API_URL}/lego_sets`),
           axios.get(`${API_URL}/sessions`),
-          axios.get(`${API_URL}/affectations`)
+          axios.get(`${API_URL}/affectations`),
+          axios.get(`${API_URL}/parametres`)
         ]);
 
         setEleves(elevesRes.data);
         setLegoSets(legoSetsRes.data);
         setSessions(sessionsRes.data);
         setAffectations(affectationsRes.data);
+        setParametres(parametresRes.data);
       } catch (err) {
         setError('Erreur lors de la récupération des statistiques');
       }
@@ -59,32 +46,47 @@ function DashboardPage() {
     fetchDashboardData();
   }, []);
 
+  // Filtre par année scolaire (vide = toutes les années)
+  const anneesDisponibles = [...new Set([
+    ...eleves.map((eleve) => eleve.annee_scolaire),
+    ...sessions.map((session) => session.annee_scolaire),
+    ...affectations.map((affectation) => affectation.annee_scolaire),
+    parametres?.annee_scolaire,
+    parametres?.annee_suivante
+  ].filter(Boolean))].sort((anneeA, anneeB) => anneeB.localeCompare(anneeA));
+
+  const elevesAffiches = anneeFiltre ? eleves.filter((eleve) => eleve.annee_scolaire === anneeFiltre) : eleves;
+  const sessionsAffichees = anneeFiltre ? sessions.filter((session) => session.annee_scolaire === anneeFiltre) : sessions;
+  const affectationsAffichees = anneeFiltre
+    ? affectations.filter((affectation) => affectation.annee_scolaire === anneeFiltre)
+    : affectations;
+
   const affectationStats = {
-    enCours: affectations.filter((aff) => aff.statut === 'en_cours').length,
-    complet: affectations.filter((aff) => aff.statut === 'complet').length,
-    nonFini: affectations.filter((aff) => aff.statut === 'non_fini').length
+    enCours: affectationsAffichees.filter((aff) => aff.statut === 'en_cours').length,
+    complet: affectationsAffichees.filter((aff) => aff.statut === 'complet').length,
+    nonFini: affectationsAffichees.filter((aff) => aff.statut === 'non_fini').length
   };
   const setsEnCours = new Set(
-    affectations
+    affectationsAffichees
       .filter((aff) => aff.statut !== 'complet')
       .map((aff) => Number(aff.lego_set_id))
   );
   const setsDisponiblesCount = legoSets.filter(
     (set) => set.disponible !== false && !setsEnCours.has(Number(set.id))
   ).length;
-  const totalAffectations = affectations.length;
-  const sessionsTriees = [...sessions]
+  const totalAffectations = affectationsAffichees.length;
+  const sessionsTriees = [...sessionsAffichees]
     .sort((sessionA, sessionB) => new Date(sessionB.date) - new Date(sessionA.date));
-  const classes = [...new Set(eleves.map((eleve) => getNiveauLabel(eleve.classe)).filter(Boolean))]
+  const classes = [...new Set(elevesAffiches.map((eleve) => getNiveauLabel(eleve.classe)).filter(Boolean))]
     .sort((classeA, classeB) => getClasseSortValue(classeB) - getClasseSortValue(classeA) || classeA.localeCompare(classeB, 'fr'));
   const statistiquesSessions = sessionsTriees.map((session) => {
-    const sessionAffectations = affectations.filter(
+    const sessionAffectations = affectationsAffichees.filter(
       (aff) => Number(aff.session_id) === Number(session.id)
     );
     const elevesParClasse = Object.fromEntries(classes.map((classe) => [classe, new Set()]));
 
     sessionAffectations.forEach((aff) => {
-      const eleve = eleves.find((item) => Number(item.id) === Number(aff.eleve_id));
+      const eleve = elevesAffiches.find((item) => Number(item.id) === Number(aff.eleve_id));
       const niveau = eleve ? getNiveauLabel(eleve.classe) : '';
       if (eleve && elevesParClasse[niveau]) {
         elevesParClasse[niveau].add(Number(eleve.id));
@@ -125,13 +127,28 @@ function DashboardPage() {
 
   // Nombre de séances par jour de la semaine
   const seancesParJour = JOURS_SEMAINE.map(
-    (_, index) => sessions.filter((session) => getJourSemaineValue(session.date) === index).length
+    (_, index) => sessionsAffichees.filter((session) => getJourSemaineValue(session.date) === index).length
   );
 
+  // Uniquement les jours de séances définis dans les paramètres (tous par défaut)
+  const joursSeances = parametres
+    ? parseJoursSeances(parametres.jours_seances)
+    : JOURS_SEMAINE.map((jour) => jour.index);
+  const joursAffiches = JOURS_SEMAINE.filter((jour) => joursSeances.includes(jour.index));
+
+  // Pré-remplit la période du compte-rendu avec l'année scolaire courante
+  const openReportModal = () => {
+    if (parametres) {
+      setReportStartDate(parametres.date_debut || '');
+      setReportEndDate(parametres.date_fin || '');
+    }
+    setShowReportModal(true);
+  };
+
   // Nombre d'élèves en fonction du nombre de séances suivies
-  const elevesParIdentifiant = new Set(eleves.map((eleve) => Number(eleve.id)));
+  const elevesParIdentifiant = new Set(elevesAffiches.map((eleve) => Number(eleve.id)));
   const seancesSuiviesParEleve = new Map();
-  affectations.forEach((affectation) => {
+  affectationsAffichees.forEach((affectation) => {
     const eleveId = Number(affectation.eleve_id);
     if (!elevesParIdentifiant.has(eleveId)) return;
     if (!seancesSuiviesParEleve.has(eleveId)) {
@@ -164,14 +181,30 @@ function DashboardPage() {
           </h1>
           <p className="text-muted mb-0">
             Synthèse d’activité · {new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' })}
+            {anneeFiltre && <> · Année scolaire {anneeFiltre}</>}
           </p>
         </div>
-        <Button as={Link} to="/affectations" variant="outline-primary">
-          Ouvrir les affectations
-        </Button>
-        <Button variant="primary" className="ms-2" onClick={() => setShowReportModal(true)}>
-          Générer compte‑rendu
-        </Button>
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          <Form.Group controlId="filtre-annee" className="mb-0">
+            <Form.Label className="visually-hidden">Année scolaire</Form.Label>
+            <Form.Select
+              value={anneeFiltre}
+              onChange={(e) => setAnneeFiltre(e.target.value)}
+              aria-label="Filtrer par année scolaire"
+            >
+              <option value="">Toutes les années</option>
+              {anneesDisponibles.map((annee) => (
+                <option key={annee} value={annee}>{annee}</option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+          <Button as={Link} to="/affectations" variant="outline-primary">
+            Ouvrir les affectations
+          </Button>
+          <Button variant="primary" onClick={openReportModal}>
+            Générer compte‑rendu
+          </Button>
+        </div>
       </div>
 
       {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
@@ -181,7 +214,7 @@ function DashboardPage() {
           <Card className="h-100 border-start border-4 border-primary shadow-sm">
             <Card.Body>
               <div className="text-muted">Élèves inscrits</div>
-              <div className="fs-2 fw-semibold">{eleves.length}</div>
+              <div className="fs-2 fw-semibold">{elevesAffiches.length}</div>
             </Card.Body>
           </Card>
         </Col>
@@ -198,8 +231,8 @@ function DashboardPage() {
           <Card className="h-100 border-start border-4 border-info shadow-sm">
             <Card.Body>
               <div className="text-muted">Sessions planifiées</div>
-              <div className="fs-2 fw-semibold">{sessions.length}</div>
-              <small className="text-muted">{sessions.filter((session) => session.ouvert).length} ouvertes</small>
+              <div className="fs-2 fw-semibold">{sessionsAffichees.length}</div>
+              <small className="text-muted">{sessionsAffichees.filter((session) => session.ouvert).length} ouvertes</small>
             </Card.Body>
           </Card>
         </Col>
@@ -244,24 +277,24 @@ function DashboardPage() {
         <div className="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-3">
           <h2 id="bilan-jours-semaine" className="h5 mb-0">Séances par jour de la semaine</h2>
           <span className="text-muted small">
-            Répartition des {sessions.length} session{sessions.length > 1 ? 's' : ''} enregistrée{sessions.length > 1 ? 's' : ''}
+            Répartition des {sessionsAffichees.length} session{sessionsAffichees.length > 1 ? 's' : ''} enregistrée{sessionsAffichees.length > 1 ? 's' : ''}
           </span>
         </div>
         <ProgressBar aria-label="Répartition des séances par jour de la semaine" className="mb-3" style={{ height: '12px' }}>
-          {JOURS_SEMAINE.map((jour, index) => (
+          {joursAffiches.map((jour) => (
             <ProgressBar
               key={jour.label}
-              now={seancesParJour[index]}
-              max={sessions.length || 1}
+              now={seancesParJour[jour.index]}
+              max={sessionsAffichees.length || 1}
               style={{ backgroundColor: jour.couleur }}
             />
           ))}
         </ProgressBar>
         <Row className="g-3">
-          {JOURS_SEMAINE.map((jour, index) => (
+          {joursAffiches.map((jour) => (
             <Col xs={6} sm={4} lg={3} key={jour.label}>
               <div className="small text-muted">{jour.label}</div>
-              <div className="fw-semibold" style={{ color: jour.couleur }}>{seancesParJour[index]}</div>
+              <div className="fw-semibold" style={{ color: jour.couleur }}>{seancesParJour[jour.index]}</div>
             </Col>
           ))}
         </Row>
@@ -270,7 +303,9 @@ function DashboardPage() {
       <section aria-labelledby="bilan-sessions">
         <div className="d-flex justify-content-between align-items-baseline gap-2 mb-3">
           <h2 id="bilan-sessions" className="h5 mb-0">Activité par session</h2>
-          <span className="text-muted small">Toutes les sessions · élèves par classe et constructions terminées</span>
+          <span className="text-muted small">
+            {anneeFiltre ? `Année ${anneeFiltre}` : 'Toutes les années'} · élèves par classe et constructions terminées
+          </span>
         </div>
         <Table striped hover responsive className="bg-white">
           <thead>

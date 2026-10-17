@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from datetime import date, time
+from typing import Optional
 
 class AffectationBase(BaseModel):
     eleve_id: int
@@ -8,6 +9,7 @@ class AffectationBase(BaseModel):
     statut: str = 'en_cours'
     heure_arrivee: time | None = None
     heure_depart: time | None = None
+    annee_scolaire: Optional[str] = None
 
     @field_validator('statut')
     @classmethod

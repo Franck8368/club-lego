@@ -7,5 +7,6 @@ from .eleve import Eleve
 from .lego_set import LegoSet
 from .session import Session
 from .affectation import Affectation
+from .parametres import Parametres
 
-__all__ = ["Base", "Eleve", "LegoSet", "Session", "Affectation"]
+__all__ = ["Base", "Eleve", "LegoSet", "Session", "Affectation", "Parametres"]
