@@ -9,6 +9,24 @@ const API_URL = '/api';
 
 const getClasseSortValue = (classe) => Number((classe.match(/\d+/) || ['0'])[0]);
 
+// Jours de la semaine (index 0 = lundi), avec une couleur propre à chaque jour
+const JOURS_SEMAINE = [
+  { label: 'Lundi', couleur: '#1f77b4' },
+  { label: 'Mardi', couleur: '#ff7f0e' },
+  { label: 'Mercredi', couleur: '#2ca02c' },
+  { label: 'Jeudi', couleur: '#d62728' },
+  { label: 'Vendredi', couleur: '#9467bd' },
+  { label: 'Samedi', couleur: '#8c564b' },
+  { label: 'Dimanche', couleur: '#e377c2' }
+];
+
+const getJourSemaineValue = (dateValue) => {
+  if (!dateValue) return null;
+  const parsedDate = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) return null;
+  return (parsedDate.getDay() + 6) % 7; // 0 = lundi, 6 = dimanche
+};
+
 function DashboardPage() {
   const [eleves, setEleves] = useState([]);
   const [legoSets, setLegoSets] = useState([]);
@@ -105,6 +123,38 @@ function DashboardPage() {
     });
   };
 
+  // Nombre de séances par jour de la semaine
+  const seancesParJour = JOURS_SEMAINE.map(
+    (_, index) => sessions.filter((session) => getJourSemaineValue(session.date) === index).length
+  );
+
+  // Nombre d'élèves en fonction du nombre de séances suivies
+  const elevesParIdentifiant = new Set(eleves.map((eleve) => Number(eleve.id)));
+  const seancesSuiviesParEleve = new Map();
+  affectations.forEach((affectation) => {
+    const eleveId = Number(affectation.eleve_id);
+    if (!elevesParIdentifiant.has(eleveId)) return;
+    if (!seancesSuiviesParEleve.has(eleveId)) {
+      seancesSuiviesParEleve.set(eleveId, new Set());
+    }
+    seancesSuiviesParEleve.get(eleveId).add(Number(affectation.session_id));
+  });
+  const repartitionFrequentation = [];
+  seancesSuiviesParEleve.forEach((sessionsSuivies) => {
+    const nombreSeances = sessionsSuivies.size;
+    const ligne = repartitionFrequentation.find((item) => item.nombreSeances === nombreSeances);
+    if (ligne) {
+      ligne.nombreEleves += 1;
+    } else {
+      repartitionFrequentation.push({ nombreSeances, nombreEleves: 1 });
+    }
+  });
+  repartitionFrequentation.sort((ligneA, ligneB) => ligneA.nombreSeances - ligneB.nombreSeances);
+  const elevesAyantParticipe = repartitionFrequentation.reduce(
+    (total, ligne) => total + ligne.nombreEleves,
+    0
+  );
+
   return (
     <div>
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
@@ -190,6 +240,33 @@ function DashboardPage() {
         </Row>
       </section>
 
+      <section className="bg-white border rounded p-3 p-md-4 mb-4" aria-labelledby="bilan-jours-semaine">
+        <div className="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-3">
+          <h2 id="bilan-jours-semaine" className="h5 mb-0">Séances par jour de la semaine</h2>
+          <span className="text-muted small">
+            Répartition des {sessions.length} session{sessions.length > 1 ? 's' : ''} enregistrée{sessions.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <ProgressBar aria-label="Répartition des séances par jour de la semaine" className="mb-3" style={{ height: '12px' }}>
+          {JOURS_SEMAINE.map((jour, index) => (
+            <ProgressBar
+              key={jour.label}
+              now={seancesParJour[index]}
+              max={sessions.length || 1}
+              style={{ backgroundColor: jour.couleur }}
+            />
+          ))}
+        </ProgressBar>
+        <Row className="g-3">
+          {JOURS_SEMAINE.map((jour, index) => (
+            <Col xs={6} sm={4} lg={3} key={jour.label}>
+              <div className="small text-muted">{jour.label}</div>
+              <div className="fw-semibold" style={{ color: jour.couleur }}>{seancesParJour[index]}</div>
+            </Col>
+          ))}
+        </Row>
+      </section>
+
       <section aria-labelledby="bilan-sessions">
         <div className="d-flex justify-content-between align-items-baseline gap-2 mb-3">
           <h2 id="bilan-sessions" className="h5 mb-0">Activité par session</h2>
@@ -235,6 +312,44 @@ function DashboardPage() {
         </Table>
         <p className="text-muted small mb-0">
           La moyenne porte sur le nombre de pièces des sets marqués complets pour chaque session.
+        </p>
+      </section>
+
+      <section className="mt-4" aria-labelledby="bilan-frequentation">
+        <div className="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-3">
+          <h2 id="bilan-frequentation" className="h5 mb-0">Élèves selon le nombre de séances</h2>
+          <span className="text-muted small">Nombre d’élèves en fonction du nombre de séances suivies</span>
+        </div>
+        <Table striped hover responsive className="bg-white">
+          <thead>
+            <tr>
+              <th>Nombre de séances</th>
+              <th>Nombre d’élèves</th>
+            </tr>
+          </thead>
+          <tbody>
+            {repartitionFrequentation.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="text-center text-muted py-4">Aucune donnée de fréquentation.</td>
+              </tr>
+            ) : repartitionFrequentation.map(({ nombreSeances, nombreEleves }) => (
+              <tr key={nombreSeances}>
+                <td>{nombreSeances}</td>
+                <td>{nombreEleves}</td>
+              </tr>
+            ))}
+          </tbody>
+          {repartitionFrequentation.length > 0 && (
+            <tfoot>
+              <tr>
+                <th>Total</th>
+                <th>{elevesAyantParticipe}</th>
+              </tr>
+            </tfoot>
+          )}
+        </Table>
+        <p className="text-muted small mb-0">
+          Un élève est compté une fois par séance suivie ; seuls les élèves ayant participé à au moins une séance apparaissent.
         </p>
       </section>
       <Modal show={showReportModal} onHide={() => setShowReportModal(false)}>
