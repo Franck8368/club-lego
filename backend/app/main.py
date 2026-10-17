@@ -46,7 +46,7 @@ FRONTEND_BUILD_DIR = REPO_ROOT / "frontend" / "build"
 STATIC_DIR = FRONTEND_BUILD_DIR / "static"
 INDEX_PATH = FRONTEND_BUILD_DIR / "index.html"
 
-app = FastAPI(title="Club LEGO", version="0.1.0")
+app = FastAPI(title="Club LEGO", version="1.0.0")
 
 # 4. Créer les tables (APRÈS tous les imports)
 Base.metadata.create_all(bind=engine)
