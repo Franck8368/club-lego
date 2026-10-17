@@ -214,6 +214,8 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     eleves_by_id = {e.id: e for e in eleves_all}
     total_eleves = len(eleves_all)
     total_sets = db.query(LegoSet).count()
+    # Nombre de pièces de chaque set (0 si non renseigné)
+    pieces_sets = [row[0] or 0 for row in db.query(LegoSet.nombre_pieces).all()]
 
     # Élèves absents : inscrits mais n'ayant jamais assisté à une séance
     ids_avec_seance = {
@@ -224,6 +226,17 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     # Moyenne des pièces par set (arrondie à l'unité)
     moyenne_pieces = db.query(func.avg(LegoSet.nombre_pieces)).scalar()
     moyenne_pieces = int(round(moyenne_pieces)) if moyenne_pieces is not None else 0
+
+    # Répartition des sets par tranche de 100 pièces (jusqu'à 1000).
+    # Les tranches vides ne sont pas écrites, pour limiter le nombre de lignes.
+    tranches_pieces = []
+    for debut, fin in [(0, 100)] + [(d, d + 99) for d in range(101, 1000, 100)]:
+        nombre = sum(1 for p in pieces_sets if debut <= p <= fin)
+        if nombre:
+            tranches_pieces.append((f"{debut} à {fin}", nombre))
+    nb_grands_sets = sum(1 for p in pieces_sets if p > 1000)
+    if nb_grands_sets:
+        tranches_pieces.append(("Plus de 1000", nb_grands_sets))
 
     # Niveaux présents (même calcul et même tri que le dashboard)
     niveaux = sorted(
@@ -466,6 +479,14 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
     chart_title_style = ParagraphStyle(
         "chart_title", fontName="Helvetica-Bold", fontSize=12
     )
+    # Note explicative en italique, sous la ligne « Élèves inscrits »
+    note_absents_style = ParagraphStyle(
+        "note_absents",
+        fontName="Helvetica-Oblique",
+        fontSize=9,
+        textColor=colors.HexColor("#555555"),
+        leftIndent=repartition_indent,
+    )
 
     # --- En-tête : titre (en haut, centré) + période, logo à côté ----
     title_paragraph = Paragraph("Bilan d'activité du Club LEGO", title_style)
@@ -558,6 +579,46 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         )
         return table
 
+    def _make_tranches_pieces_table(tranches):
+        """Tableau 2 colonnes : tranche de pièces / nombre de sets LEGO.
+
+        Le tableau est décalé vers la droite (« tabulation ») comme les lignes
+        « par niveau » et « par sexe » ; l'en-tête reprend le bleu du tableau
+        des séances.
+        """
+        donnees = [["", "Nombre de pièces", "Nombre de sets LEGO"]]
+        donnees += [["", tranche, str(nombre)] for tranche, nombre in tranches]
+        largeur = (content_width - repartition_indent) / 2.0
+        table = Table(
+            donnees,
+            colWidths=[repartition_indent, largeur, largeur],
+            hAlign="LEFT",
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (1, 0), (-1, 0), colors.HexColor("#0d6efd")),
+                    ("TEXTCOLOR", (1, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (1, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (1, 0), (-1, -1), 9),
+                    ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (1, 0), (-1, -1), "MIDDLE"),
+                    ("GRID", (1, 0), (-1, -1), 0.5, colors.grey),
+                    (
+                        "ROWBACKGROUNDS",
+                        (1, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#f2f2f2")],
+                    ),
+                    ("LEFTPADDING", (0, 0), (0, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (0, -1), 0),
+                    ("TOPPADDING", (0, 0), (0, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (0, -1), 0),
+                ]
+            )
+        )
+        return table
+
     def _make_repartition_niveau(niveaux, comptage):
         """Ligne « Par niveau : … » répartie sur toute la largeur disponible.
 
@@ -615,6 +676,15 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         )
     )
 
+    # Note (italique) expliquant la notion d'absent, sous « Élèves inscrits »
+    elements.append(Spacer(1, 0.15 * CM))
+    elements.append(
+        Paragraph(
+            "Absent : élève inscrit n'ayant jamais assisté à une seule séance.",
+            note_absents_style,
+        )
+    )
+
     # Répartition par niveau : écart plus marqué puis répartie sur toute la ligne
     elements.append(Spacer(1, 0.8 * CM))
     elements.append(_make_repartition_niveau(niveaux, comptage_niveaux))
@@ -638,7 +708,12 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         )
     )
 
-    # Espacement de 1,5 entre la ligne « sets au total » et le récap séances
+    # Répartition des sets par tranche de 100 pièces (tableau décalé)
+    if tranches_pieces:
+        elements.append(Spacer(1, 0.3 * CM))
+        elements.append(_make_tranches_pieces_table(tranches_pieces))
+
+    # Espacement avant le récap des séances
     elements.append(Spacer(1, 1.5 * CM))
 
     # --- Récap des séances : total + par jour de la semaine (réalisés) ---
