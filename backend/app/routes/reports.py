@@ -503,6 +503,11 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
             return LogoFlowable(icon_png, icon_size, icon_size)
         return ""
 
+    # La Frame interne de SimpleDocTemplate réserve 6 pt de marge de chaque côté.
+    # On utilise cette largeur utile pour que les tableaux ne débordent pas et
+    # démarrent exactement au même x que les paragraphes (« par sexe »).
+    content_width = doc.width - 12
+
     summary_col_widths = [icon_size + 0.1 * CM, 2.9 * inch, 0.4 * inch, 2.9 * inch]
 
     def _make_summary_table(rows):
@@ -536,7 +541,7 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         label_width = stringWidth(
             label, repartition_style.fontName, repartition_style.fontSize
         )
-        column_width = (doc.width - indent - label_width) / len(items)
+        column_width = (content_width - indent - label_width) / len(items)
         cells = (
             [""]
             + [Paragraph(label, repartition_style)]
@@ -545,6 +550,7 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         table = Table(
             [cells],
             colWidths=[indent, label_width] + [column_width] * len(items),
+            hAlign="LEFT",
         )
         table.setStyle(
             TableStyle(
@@ -559,7 +565,9 @@ def generate_report(start: str | None = None, end: str | None = None, db: Sessio
         )
         return table
 
-    recap_sexes = f"Féminin : {nb_feminin} · Masculin : {nb_masculin}"
+    # Écart marqué entre « Féminin » et « Masculin » (effet tabulation)
+    sexe_gap = "&nbsp;" * 10
+    recap_sexes = f"Féminin : {nb_feminin}{sexe_gap}Masculin : {nb_masculin}"
 
     # Ligne « Élèves inscrits / Absents »
     elements.append(
