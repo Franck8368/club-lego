@@ -53,6 +53,22 @@ def ensure_affectation_columns():
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_affectation_eleve_set_session ON affectations (eleve_id, lego_set_id, session_id)"))
 
 
+def ensure_parametres_columns(database_engine=engine):
+    """Ajoute les colonnes de préparation de l'année suivante à la table parametres."""
+    inspector = inspect(database_engine)
+    if not inspector.has_table("parametres"):
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("parametres")}
+    with database_engine.begin() as connection:
+        if "annee_suivante" not in existing_columns:
+            connection.execute(text("ALTER TABLE parametres ADD COLUMN annee_suivante VARCHAR(20)"))
+        if "date_debut_suivante" not in existing_columns:
+            connection.execute(text("ALTER TABLE parametres ADD COLUMN date_debut_suivante DATE"))
+        if "date_fin_suivante" not in existing_columns:
+            connection.execute(text("ALTER TABLE parametres ADD COLUMN date_fin_suivante DATE"))
+
+
 def ensure_annee_scolaire_columns(database_engine=engine):
     """Ajoute la colonne « annee_scolaire » aux tables concernées.
 

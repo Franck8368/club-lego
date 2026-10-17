@@ -44,6 +44,14 @@ export const anneeScolaireDepuisDate = (dateDebut) => {
   return `${debut}-${debut + 1}`;
 };
 
+// Libellé de l'année scolaire suivante (« 2027-2028 »), déduit de la date de début.
+export const anneeScolaireSuivante = (dateDebut) => {
+  const base = anneeScolaireDepuisDate(dateDebut);
+  if (!base) return '';
+  const debut = Number(base.split('-')[0]);
+  return `${debut + 1}-${debut + 2}`;
+};
+
 // Formate une date locale au format attendu par les <input type="date">.
 export const formatDateInput = (dateValue) => {
   const annee = dateValue.getFullYear();

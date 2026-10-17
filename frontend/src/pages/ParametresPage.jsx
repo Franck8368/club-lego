@@ -1,32 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
+import { Alert, Button, Card, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import { Settings } from 'lucide-react';
 import {
   JOURS_SEMAINE,
   anneeScolaireDepuisDate,
+  anneeScolaireSuivante,
   formatJoursSeances,
   parseJoursSeances
 } from '../utils/jours';
 
 const API_URL = '/api';
 
+const formatDateFr = (value) => {
+  if (!value) return '';
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString('fr-FR');
+};
+
 function ParametresPage() {
+  const [parametres, setParametres] = useState(null);
   const [formData, setFormData] = useState({ date_debut: '', date_fin: '', jours: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const applyParametres = (data) => {
+    setParametres(data);
+    setFormData({
+      date_debut: data.date_debut || '',
+      date_fin: data.date_fin || '',
+      jours: parseJoursSeances(data.jours_seances)
+    });
+  };
 
   useEffect(() => {
     const fetchParametres = async () => {
       try {
         const { data } = await axios.get(`${API_URL}/parametres`);
-        setFormData({
-          date_debut: data.date_debut || '',
-          date_fin: data.date_fin || '',
-          jours: parseJoursSeances(data.jours_seances)
-        });
+        applyParametres(data);
       } catch (err) {
         setError('Erreur lors de la récupération des paramètres');
       } finally {
@@ -77,11 +92,7 @@ function ParametresPage() {
         date_fin: formData.date_fin,
         jours_seances: formatJoursSeances(formData.jours)
       });
-      setFormData({
-        date_debut: data.date_debut || '',
-        date_fin: data.date_fin || '',
-        jours: parseJoursSeances(data.jours_seances)
-      });
+      applyParametres(data);
       setSuccess('Paramètres enregistrés');
     } catch (err) {
       setError(err?.response?.data?.detail || 'Erreur lors de l’enregistrement des paramètres');
@@ -90,7 +101,58 @@ function ParametresPage() {
     }
   };
 
-  const anneeScolaire = anneeScolaireDepuisDate(formData.date_debut);
+  const handlePrepareNextYear = async () => {
+    setError('');
+    setSuccess('');
+    setActionLoading(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/parametres/nouvelle-annee`);
+      setParametres(data);
+      setSuccess(
+        `Année scolaire ${data.annee_suivante} préparée. L’année en cours (${data.annee_scolaire}) reste active et ses données sont conservées.`
+      );
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Erreur lors de la préparation de l’année suivante');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelPreparation = async () => {
+    setError('');
+    setSuccess('');
+    setActionLoading(true);
+    try {
+      const { data } = await axios.delete(`${API_URL}/parametres/nouvelle-annee`);
+      setParametres(data);
+      setSuccess('Préparation de l’année suivante annulée.');
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Erreur lors de l’annulation');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    setError('');
+    setSuccess('');
+    setActionLoading(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/parametres/activer-nouvelle-annee`);
+      applyParametres(data);
+      setShowActivateModal(false);
+      setSuccess(
+        `Année scolaire ${data.annee_scolaire} activée. Les données des années précédentes sont conservées.`
+      );
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Erreur lors de l’activation');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const anneeScolaire = anneeScolaireDepuisDate(formData.date_debut) || parametres?.annee_scolaire;
+  const labelSuivante = parametres?.annee_suivante || anneeScolaireSuivante(formData.date_debut);
 
   return (
     <div>
@@ -172,11 +234,81 @@ function ParametresPage() {
             </Card.Body>
           </Card>
 
-          <Button variant="primary" type="submit" disabled={saving}>
+          <Button variant="primary" type="submit" disabled={saving} className="mb-4">
             {saving ? 'Enregistrement…' : 'Enregistrer les paramètres'}
           </Button>
         </Form>
       )}
+
+      {!loading && (
+        <Card className="shadow-sm">
+          <Card.Header>Nouvelle année scolaire</Card.Header>
+          <Card.Body>
+            <p className="text-muted small">
+              Préparez l’année suivante sans changer l’année en cours. Aucune donnée n’est supprimée
+              ni masquée : les élèves, sessions et affectations existants sont conservés et restent
+              affichés. L’activation définit la nouvelle année courante ; les nouvelles saisies y
+              seront rattachées.
+            </p>
+
+            {parametres?.annee_suivante ? (
+              <>
+                <p className="mb-3">
+                  Année préparée : <strong>{parametres.annee_suivante}</strong>
+                  {parametres.date_debut_suivante && parametres.date_fin_suivante && (
+                    <> (du {formatDateFr(parametres.date_debut_suivante)} au {formatDateFr(parametres.date_fin_suivante)})</>
+                  )}
+                </p>
+                <Button
+                  variant="success"
+                  className="me-2"
+                  onClick={() => setShowActivateModal(true)}
+                  disabled={actionLoading}
+                >
+                  Activer l’année {parametres.annee_suivante}
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  onClick={handleCancelPreparation}
+                  disabled={actionLoading}
+                >
+                  Annuler la préparation
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="mb-3">
+                  Année en cours : <strong>{parametres?.annee_scolaire || '—'}</strong>
+                </p>
+                <Button variant="outline-primary" onClick={handlePrepareNextYear} disabled={actionLoading}>
+                  Préparer l’année {labelSuivante || 'suivante'}
+                </Button>
+              </>
+            )}
+          </Card.Body>
+        </Card>
+      )}
+
+      <Modal show={showActivateModal} onHide={() => setShowActivateModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Activer la nouvelle année scolaire</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Vous allez définir <strong>{parametres?.annee_suivante}</strong> comme année scolaire
+            courante.
+          </p>
+          <p className="mb-0">
+            Les données de l’année en cours ({parametres?.annee_scolaire}) ne sont ni supprimées ni
+            masquées : elles restent en base et à l’écran. Les nouvelles saisies seront rattachées à
+            {' '}{parametres?.annee_suivante}.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowActivateModal(false)}>Annuler</Button>
+          <Button variant="success" onClick={handleActivate} disabled={actionLoading}>Activer</Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -49,5 +50,8 @@ class ParametresUpdate(ParametresBase):
 
 class ParametresResponse(ParametresBase):
     id: int
+    annee_suivante: Optional[str] = None
+    date_debut_suivante: Optional[date] = None
+    date_fin_suivante: Optional[date] = None
 
     model_config = ConfigDict(from_attributes=True)

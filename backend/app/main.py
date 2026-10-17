@@ -12,6 +12,7 @@ from app.database import (
     ensure_affectation_columns,
     ensure_annee_scolaire_columns,
     ensure_lego_set_columns,
+    ensure_parametres_columns,
 )
 
 # 2. Imports EXPLICITES de TOUS les modèles et de la Base
@@ -51,6 +52,7 @@ app = FastAPI(title="Club LEGO", version="0.1.0")
 Base.metadata.create_all(bind=engine)
 ensure_lego_set_columns()
 ensure_affectation_columns()
+ensure_parametres_columns()
 ensure_annee_scolaire_columns()
 
 # 5. Middleware CORS

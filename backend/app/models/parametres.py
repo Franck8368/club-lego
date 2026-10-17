@@ -17,3 +17,7 @@ class Parametres(Base):
     date_debut = Column(Date, nullable=False)
     date_fin = Column(Date, nullable=False)
     jours_seances = Column(String(20), nullable=False, default="0,1,2,3,4,5,6")
+    # Année scolaire suivante préparée (facultative), activée manuellement
+    annee_suivante = Column(String(20), nullable=True)
+    date_debut_suivante = Column(Date, nullable=True)
+    date_fin_suivante = Column(Date, nullable=True)

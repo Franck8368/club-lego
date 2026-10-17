@@ -31,6 +31,14 @@ def annee_scolaire_from_date(date_debut: datetime.date) -> str:
     return f"{start_year}-{start_year + 1}"
 
 
+def add_one_year(reference: datetime.date) -> datetime.date:
+    """Renvoie la même date, un an plus tard (gère le 29 février)."""
+    try:
+        return reference.replace(year=reference.year + 1)
+    except ValueError:  # 29 février d'une année bissextile
+        return reference.replace(year=reference.year + 1, day=28)
+
+
 def default_parametres_values(reference: datetime.date | None = None) -> dict:
     """Valeurs par défaut des paramètres pour une nouvelle installation."""
     start_year = school_year_start_year(reference)
